@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine # Using Alpine for smaller size
+    container_name: astrotracker_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432" # Expose port for local access if needed
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password} # Use .env or default
+      - POSTGRES_DB=${POSTGRES_DB:-astrotracker_db}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-astrotracker_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Add the api service here later (in Step 11)
+  # api:
+  #   build:
+  #     context: ./api
+  #     dockerfile: Dockerfile
+  #   container_name: astrotracker_api
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy 
+  #   volumes:
+  #     - ./api/app:/app/app # Mount code for hot-reloading (dev only)
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-astrotracker_db}
+  #     # Add other environment variables needed by the API (SECRET_KEY, etc.)
+  #     - SECRET_KEY=${SECRET_KEY} 
+  #     - PROJECT_NAME=${PROJECT_NAME:-AstroTracker API}
+  #     # Pass Google OAuth creds if needed directly, or load from .env in container
+  #   env_file:
+  #     - ./api/.env # Load .env file for API service
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local 
