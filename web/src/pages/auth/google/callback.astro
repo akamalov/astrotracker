@@ -1,0 +1,100 @@
+import Layout from '../../../layouts/Layout.astro';
+import { apiClient } from '../../../lib/apiClient';
+import { useAuthStore } from '../../../stores/authStore';
+
+// Define a proper type for the user object based on the API response for /users/me
+interface User {
+  id: string;
+  email: string;
+  is_active: boolean;
+  is_superuser: boolean;
+  is_verified: boolean;
+  // Add other relevant user fields from your UserRead schema in FastAPI
+}
+
+<Layout title="Processing Login...">
+  <main class="container mx-auto px-4 py-8 text-center">
+    <p id="status-message">Processing your Google login...</p>
+    <p id="error-message" class="text-red-500 mt-4"></p>
+  </main>
+
+  <script is:inline define:vars={{ apiClientPath: '../../../lib/apiClient', authStorePath: '../../../stores/authStore' }}>
+    // This script runs on the client after Google redirects back here.
+    // It assumes the backend handled the OAuth code exchange and set an auth cookie.
+    // It tries to fetch the user details using this cookie.
+
+    // Dynamically import dependencies to ensure they are loaded in the browser context
+    async function handleCallback() {
+      const statusMessage = document.getElementById('status-message');
+      const errorMessage = document.getElementById('error-message');
+      
+      try {
+          const { apiClient } = await import(apiClientPath);
+          const { useAuthStore } = await import(authStorePath);
+
+          // Clear any previous error messages
+          if (errorMessage) errorMessage.textContent = '';
+
+          // Attempt to fetch user details. If the auth cookie is set correctly,
+          // the apiClient (which now includes credentials by default if cookies are handled)
+          // should succeed.
+          // Note: apiClient might need adjustment if it doesn't handle cookies automatically.
+          // We also need the *token* itself for subsequent API calls using Bearer header.
+          // FastAPI-Users might require *another* call to exchange the cookie for a JWT token,
+          // or the JWT might be returned in the redirect URL (less standard).
+          
+          // --- Scenario 1: Assume cookie is set, fetch user --- 
+          if (statusMessage) statusMessage.textContent = 'Verifying authentication...';
+          const userData = await apiClient.get('/users/me');
+          
+          // --- Scenario 2 (Alternative): Look for token in URL hash/params --- 
+          // (Uncomment and adapt if backend sends token directly)
+          /*
+          let token = null;
+          const hashParams = new URLSearchParams(window.location.hash.substring(1)); // For #token=...
+          const queryParams = new URLSearchParams(window.location.search); // For ?token=...
+          token = hashParams.get('token') || queryParams.get('token');
+
+          if (!token) {
+             throw new Error('Authentication token not found in URL.');
+          }
+          console.log('Found token in URL:', token);
+          useAuthStore.setState({ token });
+          // Fetch user data *after* setting the token in store
+          const userData = await apiClient.get('/users/me');
+          */
+          // --- End Scenario 2 --- 
+
+          if (!userData) {
+            throw new Error('Failed to retrieve user details after login.');
+          }
+          
+          // If we got user data, we need the JWT token as well.
+          // PROBLEM: The /users/me endpoint doesn't return the JWT token.
+          // We need a way to get the token after the OAuth cookie is set.
+          // This might involve another backend endpoint or parsing it from the redirect URL (Scenario 2).
+          // For now, we'll proceed *without* the token, which means subsequent API calls will fail.
+          // --> THIS NEEDS TO BE FIXED based on how fastapi-users provides the token.
+          
+          // Update the store (partially, as token is missing)
+          const { login } = useAuthStore.getState();
+          login(userData, null); // Log in with user data but null token (PROBLEM)
+          
+          if (statusMessage) statusMessage.textContent = 'Login successful! Redirecting...';
+
+          // Redirect to dashboard
+          window.location.href = '/dashboard';
+
+      } catch (error) {
+          console.error('OAuth callback failed:', error);
+          if (statusMessage) statusMessage.textContent = 'Login failed.';
+          if (errorMessage) errorMessage.textContent = `Error: ${error.message}. Please try logging in again.`;
+          // Optional: Redirect back to login after a delay
+          // setTimeout(() => { window.location.href = '/login'; }, 5000);
+      }
+    }
+
+    // Run the handler
+    handleCallback();
+  </script>
+</Layout> 

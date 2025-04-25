@@ -1,0 +1,10 @@
+---
+description: Rules governing AI communication style and interaction.
+globs: []
+alwaysApply: true
+---
+## 🗣️ Communication
+
+*   Split responses if one isn't enough.
+*   When providing suggestions or applying fixes, clearly indicate which you are doing (e.g., "Suggestion:", "Applying fix:").
+*   Use check-ins for large tasks to confirm understanding (see `implementation-workflow.mdc` -> Interaction Guidance). 

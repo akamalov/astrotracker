@@ -1,0 +1,11 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import RegisterForm from '../../components/auth/RegisterForm';
+---
+
+<Layout title="Register - AstroTracker">
+	<main class="container mx-auto px-4 py-8">
+		<RegisterForm client:load />
+		{/* client:load ensures the React component hydrates and becomes interactive immediately */}
+	</main>
+</Layout> 
