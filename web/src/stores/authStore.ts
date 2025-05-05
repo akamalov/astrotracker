@@ -1,43 +1,48 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
-// TODO: Define a proper type for the user object based on the API response
+// Define the shape of the User object (adjust based on your UserRead schema)
 interface User {
-  id: string;
+  id: string; // Assuming UUID from UserRead schema
   email: string;
   is_active: boolean;
   is_superuser: boolean;
   is_verified: boolean;
-  // Add other relevant user fields
+  // Add other fields from your UserRead schema if needed
 }
 
+// Define the state structure
 interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
-  token: string | null;
-  login: (user: User, token: string) => void;
+  token: string | null; // Store token if needed, though cookie might be primary mechanism
+  setAuthState: (isAuthenticated: boolean, user: User | null, token?: string | null) => void;
+  login: (user: User, token?: string | null) => void;
   logout: () => void;
-  setToken: (token: string) => void; // Might be needed for OAuth callback
-  setUser: (user: User) => void;
 }
 
-// Persist the store to localStorage to keep user logged in across sessions
+// Create the store
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       isAuthenticated: false,
       user: null,
       token: null,
-      login: (user, token) =>
+      setAuthState: (isAuthenticated, user, token = null) =>
+        set({ isAuthenticated, user, token }),
+      login: (user, token = null) =>
         set({ isAuthenticated: true, user, token }),
       logout: () => set({ isAuthenticated: false, user: null, token: null }),
-      setToken: (token) => set({ token }),
-      setUser: (user) => set({ user, isAuthenticated: !!user }), // Set isAuthenticated based on user presence
     }),
     {
-      name: 'auth-storage', // Name of the item in storage (must be unique)
-      // Optional: Choose storage type (localStorage is default)
-      // storage: createJSONStorage(() => sessionStorage), 
+      name: "auth-storage", // Name of the item in storage (localStorage by default)
+      storage: createJSONStorage(() => localStorage), // Use localStorage
+      // Optionally, specify which parts of the state to persist
+      // partialize: (state) => ({ isAuthenticated: state.isAuthenticated, user: state.user }),
     }
   )
-); 
+);
+
+// Optional: Selector for convenience
+export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated;
+export const selectUser = (state: AuthState) => state.user; 

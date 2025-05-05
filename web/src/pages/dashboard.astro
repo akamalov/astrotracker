@@ -1,120 +1,27 @@
-import Layout from '../../layouts/Layout.astro';
-import { apiClient } from '../../lib/apiClient';
-import { useAuthStore } from '../../stores/authStore'; // Needed potentially for user info
-
-// Type for the chart list items (align with ChartList)
-// TODO: Import properly from shared types or define accurately
-interface ChartListItem {
-  id: string; // UUID as string
-  name: string;
-  birth_datetime: string; // ISO string
-  location_name?: string | null;
-}
-
-let charts: ChartListItem[] = [];
-let fetchError: string | null = null;
-let isLoading = true; // Assume loading initially
-
-// --- Server-Side Data Fetching (Astro) --- 
-// This runs on the server OR client depending on build/adapter.
-// PROBLEM: We need the auth token here, which is only available client-side in our current setup.
-// Astro's server-side fetch won't have the localStorage token.
-// Therefore, fetching must happen client-side.
-/* 
-try {
-  // This won't work because apiClient needs client-side authStore for token
-  // const response = await apiClient.get<ChartListItem[]>('/charts');
-  // charts = response;
-} catch (error) {
-  console.error("Failed to fetch charts:", error);
-  fetchError = error.message || "Could not load charts.";
-} finally {
-  isLoading = false;
-}
-*/
+---
+import Layout from "../layouts/Layout.astro";
+// This page will be protected later (Step 19)
+import ChartList from "../components/charts/ChartList.tsx";
+---
 
 <Layout title="Dashboard - AstroTracker">
-  <main class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold mb-6">Dashboard</h1>
-    
-    {/* Welcome message - could potentially use client-side store for name */}
-    <p class="mb-6">Welcome! Manage your natal charts below.</p>
+  <h1 class="text-3xl font-bold mb-4">Dashboard</h1>
+  <p>Welcome to your dashboard! This content should only be visible after login.</p>
+  <div class="mt-6">
+    <div class="flex justify-end mb-4"> <a href="/charts/new" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded"> Create New Chart </a> </div>
+    {/* Chart listing / management will go here */}
+    <ChartList client:idle />
+  </div>
+</Layout>
 
-    <div class="mb-6">
-      <a href="/chart/new" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
-        </svg>
-        Calculate New Chart
-      </a>
-    </div>
+<script>
+  // Client-side protection script
+  import { useAuthStore } from "../stores/authStore";
 
-    <h2 class="text-2xl font-semibold mb-4">Saved Charts</h2>
+  // const isAuthenticated = useAuthStore.getState().isAuthenticated;
 
-    <div id="chart-list-container">
-      {/* Content will be populated by client-side script */}
-      <p id="loading-message">Loading charts...</p>
-      <p id="error-message" class="text-red-500 hidden"></p>
-      <ul id="chart-list" class="space-y-3 hidden"></ul>
-    </div>
-
-  </main>
-
-  <script define:vars={{ apiClientPath: '../../lib/apiClient' }}>
-    async function fetchAndDisplayCharts() {
-      const loadingMsg = document.getElementById('loading-message');
-      const errorMsg = document.getElementById('error-message');
-      const chartListUl = document.getElementById('chart-list');
-
-      try {
-        loadingMsg?.classList.remove('hidden');
-        errorMsg?.classList.add('hidden');
-        chartListUl?.classList.add('hidden');
-        chartListUl.innerHTML = ''; // Clear previous list
-
-        const { apiClient } = await import(apiClientPath);
-        const charts = await apiClient.get('/charts'); // apiClient automatically adds auth header
-
-        if (!charts || charts.length === 0) {
-          chartListUl.innerHTML = '<li class="text-gray-500">No charts saved yet.</li>';
-        } else {
-          charts.forEach(chart => {
-            const li = document.createElement('li');
-            li.className = 'p-4 bg-white rounded shadow flex justify-between items-center';
-            
-            const chartInfo = document.createElement('div');
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'font-semibold';
-            nameSpan.textContent = chart.name;
-            const dateSpan = document.createElement('span');
-            dateSpan.className = 'text-sm text-gray-600 ml-4';
-            dateSpan.textContent = `(${new Date(chart.birth_datetime).toLocaleDateString()}) - ${chart.location_name || 'Unknown Location'}`;
-            chartInfo.appendChild(nameSpan);
-            chartInfo.appendChild(dateSpan);
-            
-            const viewLink = document.createElement('a');
-            viewLink.href = `/chart/${chart.id}`; // Link to the detail page
-            viewLink.textContent = 'View';
-            viewLink.className = 'text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded';
-
-            li.appendChild(chartInfo);
-            li.appendChild(viewLink);
-            chartListUl.appendChild(li);
-          });
-        }
-        chartListUl?.classList.remove('hidden');
-
-      } catch (error) {
-        console.error('Failed to fetch charts:', error);
-        errorMsg.textContent = `Error loading charts: ${error.message}`;
-        errorMsg?.classList.remove('hidden');
-      } finally {
-        loadingMsg?.classList.add('hidden');
-      }
-    }
-
-    // Fetch charts when the page loads
-    fetchAndDisplayCharts();
-  </script>
-
-</Layout> 
+  // TEMPORARILY DISABLED FOR TESTING WITHOUT AUTH
+  // if (!isAuthenticated) {
+  //   window.location.href = "/login"; // Redirect to login if not authenticated
+  // }
+</script> 

@@ -11,36 +11,34 @@ services:
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password} # Use .env or default
-      - POSTGRES_DB=${POSTGRES_DB:-astrotracker_db}
+      - POSTGRES_DB=${POSTGRES_DB:-astrotracker}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-astrotracker_db}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-astrotracker}"]
       interval: 5s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
-  # Add the api service here later (in Step 11)
-  # api:
-  #   build:
-  #     context: ./api
-  #     dockerfile: Dockerfile
-  #   container_name: astrotracker_api
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy 
-  #   volumes:
-  #     - ./api/app:/app/app # Mount code for hot-reloading (dev only)
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-astrotracker_db}
-  #     # Add other environment variables needed by the API (SECRET_KEY, etc.)
-  #     - SECRET_KEY=${SECRET_KEY} 
-  #     - PROJECT_NAME=${PROJECT_NAME:-AstroTracker API}
-  #     # Pass Google OAuth creds if needed directly, or load from .env in container
-  #   env_file:
-  #     - ./api/.env # Load .env file for API service
-  #   restart: unless-stopped
+  # API Service Configuration
+  api:
+    build:
+      context: ./api # Path to the directory containing the Dockerfile
+      dockerfile: Dockerfile
+    container_name: astrotracker_api
+    depends_on:
+      db:
+        condition: service_healthy # Wait for DB to be ready
+    volumes:
+      # Mount local code into container for development hot-reloading
+      # Uvicorn --reload will watch for changes in this mounted volume
+      - ./api:/app 
+    ports:
+      - "8000:8000" # Map host port 8000 to container port 8000
+    # Pass environment variables from .env file located in ./api
+    # Ensures sensitive keys (SECRET_KEY, DB_PASS, OAUTH_SECRET) are not in compose file
+    env_file:
+      - ./api/.env 
+    restart: unless-stopped
 
 volumes:
   postgres_data:

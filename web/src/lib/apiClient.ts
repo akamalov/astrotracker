@@ -1,97 +1,77 @@
-import { useAuthStore } from '../stores/authStore'; // Import the store
+import axios, { type AxiosInstance, type AxiosResponse, type AxiosError } from "axios";
 
-// TODO: Replace hardcoded API URL with environment variable once the .env file blocking issue is resolved.
-// Use import.meta.env.VITE_API_BASE_URL
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+// Get the API base URL from environment variables
+// IMPORTANT: Vite exposes client-side env vars prefixed with VITE_
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 
-interface RequestOptions extends RequestInit {
-  params?: Record<string, string>;
+// Create an Axios instance
+const apiClient: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  withCredentials: true, // Important for sending/receiving cookies (like auth tokens)
+});
+
+// Optional: Add interceptors for request/response handling (e.g., adding auth tokens)
+apiClient.interceptors.request.use(
+  (config) => {
+    // Example: Add Authorization header if a token exists (we'll manage token later)
+    // const token = localStorage.getItem("authToken"); 
+    // if (token) {
+    //   config.headers.Authorization = `Bearer ${token}`;
+    // }
+    return config;
+  },
+  (error: AxiosError) => {
+    return Promise.reject(error);
+  }
+);
+
+// Export the apiClient instance
+export default apiClient;
+
+// --- Separate API Functions ---
+
+// Add a type for the chart creation payload
+interface CreateChartPayload {
+    name: string;
+    birth_datetime: string; // ISO-like string (YYYY-MM-DDTHH:MM:SS)
+    city: string;
+    location_name: string | null;
 }
 
-async function request<T>(
-  endpoint: string,
-  options: RequestOptions = {}
-): Promise<T> {
-  const { params, ...fetchOptions } = options;
-  let url = `${API_BASE_URL}${endpoint}`;
-
-  if (params) {
-    const searchParams = new URLSearchParams(params);
-    url += `?${searchParams.toString()}`;
-  }
-
-  // Add default headers if needed, e.g., Content-Type
-  const headers = new Headers(fetchOptions.headers);
-  if (!headers.has('Content-Type') && !(fetchOptions.body instanceof FormData)) {
-    headers.set('Content-Type', 'application/json');
-  }
-  // Add Authorization header if token exists in the store
-  const token = useAuthStore.getState().token;
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  try {
-    const response = await fetch(url, {
-      ...fetchOptions,
-      headers,
-    });
-
-    if (!response.ok) {
-      // Attempt to parse error response from backend
-      let errorData;
-      try {
-        errorData = await response.json();
-      } catch (e) {
-        // Ignore if response is not JSON
-      }
-      console.error('API Error Response:', errorData);
-      throw new Error(
-        `HTTP error! status: ${response.status} - ${
-          errorData?.detail || response.statusText
-        }`
-      );
+// Function to create a chart
+export const createChart = async (data: CreateChartPayload) => {
+    try {
+        // Use the configured apiClient instance for the request
+        const response = await apiClient.post('/charts/', data); // Use trailing slash
+        return response.data;
+    } catch (error: any) {
+        console.error('API Error creating chart:', error.response || error.message);
+        // Re-throw the error specific part if available
+        const detail = error.response?.data?.detail || 'Unknown error creating chart.';
+        throw new Error(detail); // Throw a standard Error
     }
-
-    // Handle cases with no content response
-    if (response.status === 204 || response.headers.get('content-length') === '0') {
-        return undefined as T;
-    }
-
-    return (await response.json()) as T;
-  } catch (error) {
-    console.error('API Request Failed:', error);
-    // Re-throw the error so callers can handle it
-    throw error;
-  }
-}
-
-// Example helper functions
-export const apiClient = {
-  get: <T>(endpoint: string, params?: Record<string, string>, options: RequestOptions = {}) =>
-    request<T>(endpoint, { ...options, method: 'GET', params }),
-
-  post: <T>(endpoint: string, body?: any, options: RequestOptions = {}) =>
-    request<T>(endpoint, {
-      ...options,
-      method: 'POST',
-      body: body ? JSON.stringify(body) : null,
-    }),
-
-  put: <T>(endpoint: string, body?: any, options: RequestOptions = {}) =>
-    request<T>(endpoint, {
-      ...options,
-      method: 'PUT',
-      body: body ? JSON.stringify(body) : null,
-    }),
-
-  delete: <T>(endpoint: string, options: RequestOptions = {}) =>
-    request<T>(endpoint, { ...options, method: 'DELETE' }),
-
-  // Add patch, etc. as needed
 };
 
-// Example usage:
-// import { apiClient } from './apiClient';
-// const users = await apiClient.get('/users');
-// const newUser = await apiClient.post('/users', { name: 'John Doe' }); 
+// --- Interceptors ---
+
+// Interceptors for handling common errors or adding headers
+apiClient.interceptors.response.use(
+    (response) => response, // Simply return successful responses
+    (error) => {
+        // Log detailed error information
+        console.error(
+            'API Error:', 
+            error.response?.status, 
+            error.response?.data?.detail || error.message
+        );
+        // TODO: Handle specific status codes globally if needed (e.g., 401 for logout)
+        // if (error.response?.status === 401) {
+        //   console.log('Unauthorized, logging out...');
+        //   // Call logout function from authStore
+        // }
+        return Promise.reject(error); // Propagate the error
+    }
+); 

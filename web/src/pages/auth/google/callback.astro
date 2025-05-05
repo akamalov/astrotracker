@@ -1,100 +1,48 @@
-import Layout from '../../../layouts/Layout.astro';
-import { apiClient } from '../../../lib/apiClient';
-import { useAuthStore } from '../../../stores/authStore';
+---
+import Layout from "../../../layouts/Layout.astro"; // Adjust path
+---
 
-// Define a proper type for the user object based on the API response for /users/me
-interface User {
-  id: string;
-  email: string;
-  is_active: boolean;
-  is_superuser: boolean;
-  is_verified: boolean;
-  // Add other relevant user fields from your UserRead schema in FastAPI
-}
+<Layout title="Authenticating...">
+  <div class="text-center">
+    <h1 class="text-2xl font-semibold mb-4">Authenticating with Google...</h1>
+    <p>Please wait while we log you in.</p>
+    {/* Basic loading spinner - replace with a better one if desired */}
+    <div class="mt-6" role="status">
+        <svg aria-hidden="true" class="inline w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-indigo-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/><path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/></svg>
+        <span class="sr-only">Loading...</span>
+    </div>
+  </div>
 
-<Layout title="Processing Login...">
-  <main class="container mx-auto px-4 py-8 text-center">
-    <p id="status-message">Processing your Google login...</p>
-    <p id="error-message" class="text-red-500 mt-4"></p>
-  </main>
+  <script>
+    import { useAuthStore } from "../../../stores/authStore";
+    import apiClient from "../../../lib/apiClient";
 
-  <script is:inline define:vars={{ apiClientPath: '../../../lib/apiClient', authStorePath: '../../../stores/authStore' }}>
-    // This script runs on the client after Google redirects back here.
-    // It assumes the backend handled the OAuth code exchange and set an auth cookie.
-    // It tries to fetch the user details using this cookie.
+    const login = useAuthStore.getState().login;
 
-    // Dynamically import dependencies to ensure they are loaded in the browser context
-    async function handleCallback() {
-      const statusMessage = document.getElementById('status-message');
-      const errorMessage = document.getElementById('error-message');
-      
+    // Function to attempt fetching user data and update store
+    const handleAuthCallback = async () => {
       try {
-          const { apiClient } = await import(apiClientPath);
-          const { useAuthStore } = await import(authStorePath);
+        // The cookie should have been set by the backend redirect
+        // Attempt to fetch user details using the cookie
+        const response = await apiClient.get("/users/me");
+        const userData = response.data;
 
-          // Clear any previous error messages
-          if (errorMessage) errorMessage.textContent = '';
-
-          // Attempt to fetch user details. If the auth cookie is set correctly,
-          // the apiClient (which now includes credentials by default if cookies are handled)
-          // should succeed.
-          // Note: apiClient might need adjustment if it doesn't handle cookies automatically.
-          // We also need the *token* itself for subsequent API calls using Bearer header.
-          // FastAPI-Users might require *another* call to exchange the cookie for a JWT token,
-          // or the JWT might be returned in the redirect URL (less standard).
-          
-          // --- Scenario 1: Assume cookie is set, fetch user --- 
-          if (statusMessage) statusMessage.textContent = 'Verifying authentication...';
-          const userData = await apiClient.get('/users/me');
-          
-          // --- Scenario 2 (Alternative): Look for token in URL hash/params --- 
-          // (Uncomment and adapt if backend sends token directly)
-          /*
-          let token = null;
-          const hashParams = new URLSearchParams(window.location.hash.substring(1)); // For #token=...
-          const queryParams = new URLSearchParams(window.location.search); // For ?token=...
-          token = hashParams.get('token') || queryParams.get('token');
-
-          if (!token) {
-             throw new Error('Authentication token not found in URL.');
-          }
-          console.log('Found token in URL:', token);
-          useAuthStore.setState({ token });
-          // Fetch user data *after* setting the token in store
-          const userData = await apiClient.get('/users/me');
-          */
-          // --- End Scenario 2 --- 
-
-          if (!userData) {
-            throw new Error('Failed to retrieve user details after login.');
-          }
-          
-          // If we got user data, we need the JWT token as well.
-          // PROBLEM: The /users/me endpoint doesn't return the JWT token.
-          // We need a way to get the token after the OAuth cookie is set.
-          // This might involve another backend endpoint or parsing it from the redirect URL (Scenario 2).
-          // For now, we'll proceed *without* the token, which means subsequent API calls will fail.
-          // --> THIS NEEDS TO BE FIXED based on how fastapi-users provides the token.
-          
-          // Update the store (partially, as token is missing)
-          const { login } = useAuthStore.getState();
-          login(userData, null); // Log in with user data but null token (PROBLEM)
-          
-          if (statusMessage) statusMessage.textContent = 'Login successful! Redirecting...';
-
-          // Redirect to dashboard
-          window.location.href = '/dashboard';
-
+        if (userData) {
+          login(userData); // Update the Zustand store
+          window.location.href = "/dashboard"; // Redirect to dashboard
+        } else {
+          // Handle case where /users/me didn't return data (though unlikely if cookie was set)
+          console.error("OAuth callback: Failed to fetch user data.");
+          window.location.href = "/login?error=oauth_failed"; // Redirect to login with error
+        }
       } catch (error) {
-          console.error('OAuth callback failed:', error);
-          if (statusMessage) statusMessage.textContent = 'Login failed.';
-          if (errorMessage) errorMessage.textContent = `Error: ${error.message}. Please try logging in again.`;
-          // Optional: Redirect back to login after a delay
-          // setTimeout(() => { window.location.href = '/login'; }, 5000);
+        console.error("OAuth callback error:", error);
+        // Redirect to login page with an error indicator
+        window.location.href = "/login?error=oauth_error";
       }
-    }
+    };
 
-    // Run the handler
-    handleCallback();
+    // Run the callback handler on page load
+    handleAuthCallback();
   </script>
 </Layout> 

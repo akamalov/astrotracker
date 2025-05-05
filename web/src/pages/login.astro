@@ -1,11 +1,11 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import LoginForm from '../../components/auth/LoginForm';
+import Layout from "../layouts/Layout.astro";
+import LoginForm from "../components/auth/LoginForm";
+// We will import and use the LoginForm component here later (Step 19)
 ---
 
 <Layout title="Login - AstroTracker">
-	<main class="container mx-auto px-4 py-8">
-		<LoginForm client:load />
-		{/* client:load ensures the React component hydrates and becomes interactive immediately */}
-	</main>
-</Layout> 
+  <h1 class="text-3xl font-bold mb-4">Login</h1>
+  <p>Login form will go here.</p>
+  <LoginForm client:load />
+</Layout>

@@ -1,155 +1,90 @@
 ---
-import LogoutButton from '../components/auth/LogoutButton';
-
-interface Props {
-	title: string;
+// Define props if needed, e.g., for title
+import LogoutButton from "../components/auth/LogoutButton";
+export interface Props {
+	title?: string;
 }
 
-const { title } = Astro.props;
-
-// Determine current path for active link styling
-const pathname = Astro.url.pathname;
-
-// Basic Nav Links - these will be dynamically shown/hidden by client-side script
-const navLinks = [
-  { href: '/', text: 'Home' },
-  { href: '/dashboard', text: 'Dashboard', protected: true },
-  { href: '/login', text: 'Login', publicOnly: true },
-  { href: '/register', text: 'Register', publicOnly: true },
-];
+const { title = "AstroTracker" } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="description" content="Astro description" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="generator" content={Astro.generator} />
-		<title>{title}</title>
-	</head>
-	<body class="bg-gray-100 text-gray-900">
-		<header class="bg-white shadow-md">
-			<nav class="container mx-auto px-4 py-3 flex justify-between items-center">
-				<a href="/" class="text-xl font-bold text-blue-600">AstroTracker</a>
-				<ul class="flex space-x-4 items-center" id="nav-links">
-					{/* Static links rendered by Astro - these might flash briefly before client script runs */}
-					{/* Client-side script will adjust visibility based on auth state */} 
-					<li><a href="/" class:list={[ "hover:text-blue-500", { "font-semibold text-blue-600": pathname === '/' } ]}>Home</a></li>
-					{/* Placeholder list items for dynamic content */}
-				</ul>
-				<div id="auth-controls">
-					{/* Logout button will be dynamically added here */}
-				</div>
-			</nav>
-		</header>
+<html lang="en" class="h-full bg-gray-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="generator" content={Astro.generator} />
+  <title>{title}</title>
+</head>
+<body class="h-full flex flex-col">
+  <header class="bg-indigo-600 text-white shadow-md">
+    <nav class="container mx-auto px-4 py-3 flex justify-between items-center">
+      <!-- Move Home link into the div as well -->
+      <!-- <a href="/" class="hover:text-indigo-200">Home</a> REMOVED FROM HERE --> 
+      <div class="flex-grow"></div> <!-- Add a spacer div to push nav items right -->
+      <div class="space-x-4 flex items-center">
+        <a href="/" class="hover:text-indigo-200">Home</a> <!-- Home link now here -->
+        <!-- Restore classes to AstroTracker link -->
+        <a href="/" class="text-xl font-bold hover:text-indigo-200">AstroTracker</a> 
+        <a href="#" class="hover:text-indigo-200">About</a> <!-- Placeholder -->
+        <a href="/dashboard" id="dashboard-link" class="hover:text-indigo-200">Dashboard</a>
+        <div id="auth-links-logged-out" class="space-x-4">
+          <a href="/login" class="hover:text-indigo-200">Login</a>
+          <a href="/register" class="hover:text-indigo-200">Register</a>
+        </div>
+        <div id="auth-links-logged-in" style="display: none;">
+          <LogoutButton client:load /> {/** Load the logout button */} 
+        </div>
+      </div>
+    </nav>
+  </header>
 
-		<main class="container mx-auto px-4 py-8">
-			<slot /> { /* Page content goes here */}
-		</main>
+  <main class="flex-grow container mx-auto px-4 py-8">
+    <slot />
+  </main>
 
-		<footer class="mt-12 py-6 text-center text-gray-600 text-sm">
-			© {new Date().getFullYear()} AstroTracker. All rights reserved.
-		</footer>
+  <footer class="bg-gray-800 text-gray-400 py-4 mt-auto">
+    <div class="container mx-auto px-4 text-center text-sm">
+      &copy; {new Date().getFullYear()} AstroTracker. All rights reserved.
+    </div>
+  </footer>
 
-		{/* Client-side script for auth state handling */}
-		<script is:inline define:vars={{ navLinks, pathname }}>
-			function checkAuthAndRedirect() {
-				let isAuthenticated = false;
-				let user = null;
-				try {
-					// Attempt to read auth state directly from localStorage 
-					// This is a simplified approach. A more robust solution might involve Zustand hydration.
-					const authStorage = localStorage.getItem('auth-storage');
-					if (authStorage) {
-						const storedState = JSON.parse(authStorage).state;
-						isAuthenticated = storedState?.isAuthenticated ?? false;
-						user = storedState?.user ?? null;
-					}
-				} catch (e) {
-					console.error('Error reading auth state from localStorage', e);
-				}
+  <script>
+    // Client-side script to update auth links based on Zustand store
+    import { useAuthStore } from "../stores/authStore";
 
-				console.log('Auth Check:', { isAuthenticated, pathname });
+    const loggedOutLinks = document.getElementById("auth-links-logged-out");
+    const loggedInLinks = document.getElementById("auth-links-logged-in");
+    const dashboardLink = document.getElementById("dashboard-link");
 
-				// --- Protected Route Logic ---
-				const isProtectedPath = navLinks.some(link => link.href === pathname && link.protected);
-				const isPublicOnlyPath = navLinks.some(link => link.href === pathname && link.publicOnly);
+    // Function to update UI based on auth state
+    function updateAuthUI(isAuthenticated: boolean) {
+      if (loggedOutLinks && loggedInLinks && dashboardLink) {
+        if (isAuthenticated) {
+          loggedOutLinks.style.display = "none";
+          loggedInLinks.style.display = "block";
+          dashboardLink.style.display = "inline"; // Show dashboard link
+        } else {
+          loggedOutLinks.style.display = "block";
+          loggedInLinks.style.display = "none";
+          dashboardLink.style.display = "none"; // Hide dashboard link
+        }
+      }
+    }
 
-				if (isProtectedPath && !isAuthenticated) {
-					console.log(`Redirecting from protected route ${pathname} to /login`);
-					window.location.href = '/login';
-					return; // Stop further processing after redirect
-				}
+    // Initial UI update based on persisted state
+    updateAuthUI(useAuthStore.getState().isAuthenticated);
 
-				// Optional: Redirect logged-in users away from public-only pages like login/register
-				if (isPublicOnlyPath && isAuthenticated) {
-					console.log(`Redirecting from public-only route ${pathname} to /dashboard`);
-					window.location.href = '/dashboard';
-					return;
-				}
-				
-				// --- Dynamic Navigation & Auth Controls ---
-				const navLinksContainer = document.getElementById('nav-links');
-				const authControlsContainer = document.getElementById('auth-controls');
+    // Subscribe to store changes to keep UI in sync
+    useAuthStore.subscribe((state) => {
+      updateAuthUI(state.isAuthenticated);
+    });
+  </script>
+</body>
+</html>
 
-				if (navLinksContainer) {
-					navLinksContainer.innerHTML = ''; // Clear static/placeholder links
-					navLinks.forEach(link => {
-						const showLink =
-							(link.protected && isAuthenticated) || 
-							(link.publicOnly && !isAuthenticated) ||
-							(!link.protected && !link.publicOnly);
-
-						if (showLink) {
-							const li = document.createElement('li');
-							const a = document.createElement('a');
-							a.href = link.href;
-							a.textContent = link.text;
-							a.className = "hover:text-blue-500";
-							if (pathname === link.href) {
-								a.classList.add("font-semibold", "text-blue-600");
-							}
-							li.appendChild(a);
-							navLinksContainer.appendChild(li);
-						}
-					});
-				}
-
-				if (authControlsContainer) {
-					authControlsContainer.innerHTML = ''; // Clear placeholder
-					if (isAuthenticated) {
-						// Inject the LogoutButton component structure - requires component to be globally available or rendered differently
-						// Simpler approach: create a button that mimics LogoutButton functionality
-						const logoutButton = document.createElement('button');
-						logoutButton.textContent = 'Logout';
-						logoutButton.className = "bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline";
-						logoutButton.onclick = () => {
-							// Directly manipulate localStorage or call a global logout function if exposed
-							localStorage.removeItem('auth-storage');
-							window.location.href = '/login'; // Redirect after logout
-						};
-						authControlsContainer.appendChild(logoutButton);
-						// Add user info if needed: 
-						// const userInfo = document.createElement('span');
-                        // userInfo.textContent = `Logged in as ${user?.email}`;
-                        // userInfo.className = "ml-4 text-sm text-gray-600";
-                        // authControlsContainer.prepend(userInfo);
-					}
-				}
-			}
-
-			// Run on initial load
-			checkAuthAndRedirect();
-
-			// Optional: Listen for storage changes to update UI immediately if login/logout happens in another tab
-			window.addEventListener('storage', (event) => {
-				if (event.key === 'auth-storage') {
-					console.log('Auth storage changed, re-checking...');
-					checkAuthAndRedirect();
-				}
-			});
-		</script>
-	</body>
-</html> 
+<style is:global>
+  /* Add any global styles here if needed */
+  /* Tailwind handles most base styles via preflight */
+</style>

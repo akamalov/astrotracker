@@ -1,94 +1,90 @@
-import React, { useState } from 'react';
-import { apiClient } from '../../lib/apiClient';
-import { useAuthStore } from '../../stores/authStore';
+import React, { useState } from "react";
+import { useAuthStore } from "../../stores/authStore";
+import apiClient from "../../lib/apiClient";
 
-// Assuming the API returns User object similar to the store's definition on /users/me
-// And { access_token: string, token_type: 'bearer' } on /auth/jwt/login
-interface LoginResponse {
-  access_token: string;
-  token_type: string; 
-}
+// Get base URL from apiClient's defaults (or directly from env var)
+const API_BASE_URL = apiClient.defaults.baseURL;
 
-// Define a proper type for the user object based on the API response for /users/me
-interface User {
-  id: string;
-  email: string;
-  is_active: boolean;
-  is_superuser: boolean;
-  is_verified: boolean;
-  // Add other relevant user fields from your UserRead schema in FastAPI
-}
-
-const LoginForm: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+function LoginForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setLoading(true);
 
     try {
-      // FastAPI Users JWT login expects form data
-      const loginFormData = new URLSearchParams();
-      loginFormData.append('username', email);
-      loginFormData.append('password', password);
+      // FastAPI Users login expects form data with 'username' (which is email)
+      const formData = new URLSearchParams();
+      formData.append("username", email);
+      formData.append("password", password);
 
-      const loginResponse = await apiClient.post<LoginResponse>(
-        '/auth/jwt/login',
-        loginFormData,
-        {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        }
-      );
+      // Login request (sets the cookie automatically via withCredentials)
+      await apiClient.post("/auth/jwt/login", formData, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
 
-      const token = loginResponse.access_token;
+      // After successful login, fetch user details
+      const response = await apiClient.get("/users/me");
+      const userData = response.data;
 
-      // After getting token, set it in the store *before* fetching user details
-      // This way the apiClient will automatically use it for the next request
-      useAuthStore.setState({ token });
+      // Update Zustand store
+      login(userData);
 
-      // Fetch user details using the new token
-      const userData = await apiClient.get<User>('/users/me');
-
-      // Now login with user details and token
-      login(userData, token);
-
-      // Redirect handled by the parent page/layout after successful login
-      // Example: window.location.href = '/dashboard';
-
+      // Redirect to dashboard on successful login
+      window.location.href = "/dashboard";
     } catch (err: any) {
-      console.error('Login failed:', err);
-      setError(err.message || 'Failed to login. Please check your credentials.');
-      // Ensure token/user is cleared if login fails midway
-      useAuthStore.getState().logout();
+      console.error("Login Error:", err);
+      const errorMsg =
+        err.response?.data?.detail || "Login failed. Please check your credentials.";
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  // Placeholder for Google OAuth URL - adjust based on your backend setup
-  const googleLoginUrl = `${apiClient.getBaseUrl()}/auth/google/authorize`; // Assumes apiClient exposes base URL or use hardcoded one
-  // Correction: apiClient doesn't expose baseUrl, need to construct it or import from a config if we had one.
-  // For now, reconstruct using the hardcoded base URL from apiClient.ts
-  const API_BASE_URL = 'http://localhost:8000/api/v1'; // Re-declare or import if refactored
-  const googleLoginRedirectUrl = `${API_BASE_URL}/auth/google/authorize`;
+  const handleGoogleLogin = () => {
+    setError(null);
+    setLoading(true);
+    try {
+      // Directly navigate the browser to the backend authorize endpoint.
+      // The backend will return a 302 redirect which the browser will follow.
+      const backendAuthorizeUrl = `${API_BASE_URL}/auth/google/authorize`;
+      console.log("Redirecting browser to backend authorize URL:", backendAuthorizeUrl);
+      window.location.href = backendAuthorizeUrl;
+      
+      // No need to setLoading(false) here as the page will navigate away
 
+    } catch (err: any) { 
+      // This catch block likely won't be hit for navigation errors, 
+      // but keep it for unexpected issues during URL construction.
+      console.error("Google Login Setup Error:", err);
+      setError("Failed to initiate Google login.");
+      setLoading(false); // Set loading false if navigation fails immediately
+    }
+  };
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded shadow-md">
-      <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
-      <form onSubmit={handleSubmit}>
+    <div className="w-full max-w-md mx-auto mt-8">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4"
+      >
+        <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">
+          Login
+        </h2>
         {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-            {error}
-          </div>
+          <p className="mb-4 text-center text-red-500 text-sm">{error}</p>
         )}
         <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+          <label
+            className="block text-gray-700 text-sm font-bold mb-2"
+            htmlFor="email"
+          >
             Email
           </label>
           <input
@@ -99,11 +95,13 @@ const LoginForm: React.FC = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            disabled={loading}
           />
         </div>
         <div className="mb-6">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
+          <label
+            className="block text-gray-700 text-sm font-bold mb-2"
+            htmlFor="password"
+          >
             Password
           </label>
           <input
@@ -114,34 +112,49 @@ const LoginForm: React.FC = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            disabled={loading}
           />
+          {/* Optional: Add forgot password link here */}
         </div>
         <div className="flex items-center justify-between mb-4">
           <button
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full disabled:opacity-50"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full disabled:opacity-50"
             type="submit"
             disabled={loading}
           >
-            {loading ? 'Logging in...' : 'Sign In'}
+            {loading ? "Signing In..." : "Sign In"}
+          </button>
+        </div>
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500">Or continue with</span>
+          </div>
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            disabled={loading}
+          >
+            {/* Basic Google Icon Placeholder - replace with actual SVG if desired */}
+            <span className="sr-only">Sign in with Google</span>
+            <svg className="w-5 h-5 mr-2" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M15.545 6.558a9.42 9.42 0 0 1 .139 1.626c0 2.434-.87 4.492-2.384 5.885h.002C11.978 15.292 10.158 16 8 16A8 8 0 1 1 8 0a7.689 7.689 0 0 1 5.352 2.082l-2.284 2.284A4.347 4.347 0 0 0 8 3.166c-2.087 0-3.86 1.408-4.492 3.304a4.792 4.792 0 0 0 0 3.063h.003c.635 1.896 2.405 3.301 4.492 3.301 1.078 0 2.004-.276 2.722-.764h-.003a3.702 3.702 0 0 0 1.599-2.431H8v-3.08h7.545z"></path>
+            </svg>
+            {loading ? "Redirecting..." : "Sign in with Google"}
           </button>
         </div>
       </form>
-       <div className="mt-4 border-t pt-4">
-          <a 
-            href={googleLoginRedirectUrl} 
-            className="block w-full bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline text-center disabled:opacity-50"
-            // Optional: Add loading state if needed, though it's a redirect
-            // disabled={loading} 
-          >
-            Login with Google
-          </a>
-      </div>
-      <p className="text-center text-gray-500 text-xs mt-4">
-        Don't have an account? <a href="/register" className="text-blue-500 hover:text-blue-800">Register here</a>
+      <p className="text-center text-gray-500 text-xs">
+        &copy;{new Date().getFullYear()} AstroTracker. All rights reserved.
       </p>
     </div>
   );
-};
+}
 
 export default LoginForm; 
