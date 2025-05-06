@@ -1,0 +1,86 @@
+---
+// src/pages/chart/[id].astro
+import Layout from "../../layouts/Layout.astro";
+import apiClient from "../../lib/apiClient";
+import NatalChartDisplay from "../../components/charts/NatalChartDisplay.tsx";
+export const prerender = false;
+
+// Define a type for the chart data, should match NatalChartDisplay and API
+interface Chart {
+  id: string;
+  name: string;
+  // Add other relevant chart properties based on your API
+  [key: string]: any; // Keep flexible for now
+}
+
+const { id } = Astro.params;
+let chart: Chart | null = null;
+let error: string | null = null;
+let pageTitle: string; // Declare pageTitle, will be set below
+
+if (id) {
+  try {
+    const response = await apiClient.get<Chart>(`/charts/${id}`);
+    chart = response.data;
+    if (chart && chart.name) {
+      pageTitle = `Chart: ${chart.name}`;
+    } else if (chart) {
+      pageTitle = `Chart: ${id}`;
+    } else {
+      // This case should ideally not happen if API returns valid chart or 404
+      error = "Fetched chart data is invalid.";
+      pageTitle = "Error";
+      Astro.response.status = 500;
+    }
+  } catch (e: any) {
+    console.error(`Failed to fetch chart with ID ${id}:`, e);
+    let statusCode = 500;
+    let message = "Failed to load chart data. Please try again.";
+    if (e && e.message) {
+        message = `Failed to load chart data: ${e.message}`;
+    }
+    if (e && e.response) {
+      statusCode = e.response.status || 500;
+      const responseDetail = e.response.data?.detail;
+      if (e.response.status === 404) {
+        message = "Chart not found.";
+      } else if (responseDetail) {
+        message = responseDetail; 
+      }
+    }
+    error = message;
+    pageTitle = "Error";
+    Astro.response.status = statusCode;
+  }
+} else {
+  error = "No chart ID provided.";
+  pageTitle = "Error - No ID";
+  Astro.response.status = 400;
+}
+
+---
+<Layout title={pageTitle}>
+  <div class="container mx-auto px-4 py-8">
+    {/* Conditional rendering based on error or chart data */} 
+    {error && (
+      <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg border border-red-300 text-center" role="alert">
+        <span class="font-medium">Error:</span> {error}
+      </div>
+    )}
+    
+    {chart && !error && (
+      // Render the NatalChartDisplay component instead of raw JSON
+      <NatalChartDisplay client:load chartData={chart} /> 
+    )}
+
+    {!chart && !error && (
+        <p class="text-center text-gray-500">Loading chart details or chart not found...</p>
+    )}
+
+    <div class="mt-8 text-center">
+      <a href="/dashboard" class="text-indigo-600 hover:text-indigo-800 hover:underline">
+        &larr; Back to Dashboard
+      </a>
+    </div>
+  </div>
+</Layout> 

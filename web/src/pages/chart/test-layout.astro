@@ -1,0 +1,14 @@
+---
+// src/pages/chart/test-layout.astro
+import Layout from "../../layouts/Layout.astro"; // Corrected relative path
+export const prerender = false; 
+
+const pageTitle = "Static Page Layout Test";
+---
+<Layout title={pageTitle}>
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-xl font-bold">Layout Import Test</h1>
+    <p>This page is testing if <code>Layout.astro</code> can be imported correctly from within the <code>src/pages/chart/</code> directory.</p>
+    <p>If you see this text within your site's standard layout, the import is working from this path.</p>
+  </div>
+</Layout> 

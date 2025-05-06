@@ -1,0 +1,18 @@
+---
+// src/pages/simple/[foo].astro
+const { foo } = Astro.params;
+const pageTitle = `Simple Test: ${foo}`;
+---
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{pageTitle}</title>
+</head>
+<body>
+  <h1>Dynamic Page Test</h1>
+  <p>Parameter (foo): {foo}</p>
+  <p><a href="/dashboard">Back to Dashboard (if exists)</a></p>
+  <p><a href="/">Back to Home</a></p>
+</body>
+</html>

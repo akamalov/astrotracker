@@ -54,9 +54,11 @@ function ChartList() {
       ) : (
         <ul className="space-y-2">
           {charts.map((chart) => (
-            <li key={chart.id} className="p-3 border rounded shadow-sm">
+            <li key={chart.id} className="p-3 border rounded shadow-sm hover:shadow-md transition-shadow">
               {/* TODO: Display more chart details */}
-              <p className="font-medium">{chart.name || `Chart ${chart.id}`}</p> 
+              <a href={`/chart/${chart.id}`} className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
+                {chart.name || `Chart ${chart.id}`}
+              </a>
               {/* Add more details like date, location etc. */}
             </li>
           ))}
