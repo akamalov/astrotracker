@@ -18,10 +18,10 @@ import ChartList from "../components/charts/ChartList.tsx";
   // Client-side protection script
   import { useAuthStore } from "../stores/authStore";
 
-  // const isAuthenticated = useAuthStore.getState().isAuthenticated;
+  const isAuthenticated = useAuthStore.getState().isAuthenticated;
 
-  // TEMPORARILY DISABLED FOR TESTING WITHOUT AUTH
-  // if (!isAuthenticated) {
-  //   window.location.href = "/login"; // Redirect to login if not authenticated
-  // }
+  // TEMPORARILY DISABLED FOR TESTING WITHOUT AUTH - NOW ENABLED
+  if (!isAuthenticated) {
+    window.location.href = "/login"; // Redirect to login if not authenticated
+  }
 </script> 

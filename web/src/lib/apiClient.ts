@@ -74,4 +74,77 @@ apiClient.interceptors.response.use(
         // }
         return Promise.reject(error); // Propagate the error
     }
-); 
+);
+
+// The following fetch-based implementation will be removed.
+/*
+const API_BASE_URL_FETCH = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+
+interface RequestOptionsFetch extends RequestInit {
+  // We can add custom options here later if needed
+}
+
+async function apiClientFetch<T>(
+  endpoint: string,
+  options: RequestOptionsFetch = {}
+): Promise<T> {
+  const url = `${API_BASE_URL_FETCH}${endpoint}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  // TODO: Add token to headers if available (from authStore)
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      // Attempt to parse error from backend if JSON
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        // Not a JSON error, or error parsing JSON
+      }
+      console.error('API Error:', response.status, response.statusText, errorData);
+      throw new Error(errorData?.detail || response.statusText || 'API request failed');
+    }
+
+    // Handle cases where the response might be empty (e.g., 204 No Content)
+    if (response.status === 204) {
+      return undefined as T; // Or handle as appropriate for your app
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    console.error('Network or other error in apiClient:', error);
+    throw error; // Re-throw the error to be caught by the caller
+  }
+}
+
+// Example GET, POST, etc. functions (can be expanded)
+export function get<T>(endpoint: string, options: RequestOptionsFetch = {}): Promise<T> {
+  return apiClientFetch<T>(endpoint, { ...options, method: 'GET' });
+}
+
+export function post<T, U>(endpoint: string, body: U, options: RequestOptionsFetch = {}): Promise<T> {
+  return apiClientFetch<T>(endpoint, { ...options, method: 'POST', body: JSON.stringify(body) });
+}
+
+export function put<T, U>(endpoint: string, body: U, options: RequestOptionsFetch = {}): Promise<T> {
+  return apiClientFetch<T>(endpoint, { ...options, method: 'PUT', body: JSON.stringify(body) });
+}
+
+export function del<T>(endpoint: string, options: RequestOptionsFetch = {}): Promise<T> {
+  return apiClientFetch<T>(endpoint, { ...options, method: 'DELETE' });
+}
+
+// You might want to add PATCH as well:
+// export function patch<T, U>(endpoint: string, body: U, options: RequestOptionsFetch = {}): Promise<T> {
+//   return apiClientFetch<T>(endpoint, { ...options, method: 'PATCH', body: JSON.stringify(body) });
+// }
+*/ 

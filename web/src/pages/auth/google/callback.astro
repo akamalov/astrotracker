@@ -1,48 +1,119 @@
 ---
 import Layout from "../../../layouts/Layout.astro"; // Adjust path
+import { useAuthStore } from '../../../stores/authStore'; // Will be needed later
+import apiClient from '../../../lib/apiClient'; // Will be needed later
+
+// This page handles the redirect from Google OAuth
+// It needs to:
+// 1. Potentially capture an authorization code from URL query params.
+// 2. Exchange this code with the backend for an access token.
+// 3. Get user info.
+// 4. Update the authStore (login the user).
+// 5. Redirect to the dashboard or another appropriate page.
+
+let message = "Processing Google OAuth callback...";
+let authCode = Astro.url.searchParams.get('code');
+let error = Astro.url.searchParams.get('error');
+let scriptToRun: string | null = null;
+
+console.log("Google OAuth Callback URL:", Astro.url.toString());
+console.log("Auth Code:", authCode);
+console.log("Error (if any):", error);
+
+if (error) {
+  message = `OAuth Error: ${error}. Please try logging in again.`;
+  // Consider redirecting to /login with an error message
+} else if (authCode) {
+  // This block will run on the server during SSR.
+  // We prepare a message and a script to be run on the client.
+  message = "Attempting to finalize Google login..."; 
+  // The actual API calls will be made by a client-side script
+  // because Astro components' frontmatter runs on the server and cannot directly
+  // update client-side stores or perform client-side navigation based on API calls.
+  // We will pass the authCode to the client-side script.
+
+} else {
+  message = "Invalid OAuth callback state. No authorization code or error received.";
+}
+
+// For now, redirect to login after a delay or show message
+// This server-side redirect is generally not what we want if we need to process client-side
+// if (!error && !authCode) { 
+//     Astro.response.headers.set('Location', '/login?oauth_callback_issue=true');
+//     Astro.response.status = 302;
+// }
 ---
 
-<Layout title="Authenticating...">
-  <div class="text-center">
-    <h1 class="text-2xl font-semibold mb-4">Authenticating with Google...</h1>
-    <p>Please wait while we log you in.</p>
-    {/* Basic loading spinner - replace with a better one if desired */}
-    <div class="mt-6" role="status">
-        <svg aria-hidden="true" class="inline w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-indigo-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/><path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/></svg>
-        <span class="sr-only">Loading...</span>
-    </div>
+<Layout title="Google OAuth Callback - AstroTracker">
+  <div class="container mx-auto mt-8 text-center">
+    <h1 class="text-2xl font-bold mb-4">Google Authentication Callback</h1>
+    <p id="callback-message" class="mb-2">{message}</p>
+    <p class="text-sm text-gray-600">
+      If you are not redirected automatically, please <a href="/dashboard" class="text-indigo-600 hover:text-indigo-500">go to your dashboard</a> or <a href="/login" class="text-indigo-600 hover:text-indigo-500">try logging in again</a>.
+    </p>
+    {authCode && <p class="mt-4 text-xs text-gray-500">Auth Code Received (client will process): {authCode}</p>}
   </div>
+</Layout>
 
-  <script>
-    import { useAuthStore } from "../../../stores/authStore";
-    import apiClient from "../../../lib/apiClient";
+{authCode && !error && (
+  <script define:vars={{ authCodeFromSsr: authCode }}>
+    // This script runs on the client side
+    const authCode = authCodeFromSsr;
+    const messageElement = document.getElementById('callback-message');
 
-    const login = useAuthStore.getState().login;
-
-    // Function to attempt fetching user data and update store
-    const handleAuthCallback = async () => {
-      try {
-        // The cookie should have been set by the backend redirect
-        // Attempt to fetch user details using the cookie
-        const response = await apiClient.get("/users/me");
-        const userData = response.data;
-
-        if (userData) {
-          login(userData); // Update the Zustand store
-          window.location.href = "/dashboard"; // Redirect to dashboard
-        } else {
-          // Handle case where /users/me didn't return data (though unlikely if cookie was set)
-          console.error("OAuth callback: Failed to fetch user data.");
-          window.location.href = "/login?error=oauth_failed"; // Redirect to login with error
-        }
-      } catch (error) {
-        console.error("OAuth callback error:", error);
-        // Redirect to login page with an error indicator
-        window.location.href = "/login?error=oauth_error";
+    async function processGoogleLogin() {
+      if (!authCode) {
+        if (messageElement) messageElement.textContent = "No authorization code found to process.";
+        return;
       }
-    };
 
-    // Run the callback handler on page load
-    handleAuthCallback();
+      if (messageElement) messageElement.textContent = "Exchanging authorization code for token...";
+      
+      const { login } = useAuthStore.getState();
+
+      try {
+        // Step 1: Exchange authorization code for an access token
+        // Assuming your backend endpoint /auth/google/callback expects a POST request
+        // with the code in the body and returns { access_token: "...", ... }
+        // Adjust the endpoint and payload as per your FastAPI Users Google OAuth setup.
+        const tokenResponse = await apiClient.post('/auth/google/callback', { code: authCode });
+        const accessToken = tokenResponse.data.access_token;
+
+        if (!accessToken) {
+          throw new Error("Access token not received from backend.");
+        }
+
+        if (messageElement) messageElement.textContent = "Token received. Fetching user details...";
+
+        // Step 2: Fetch user details using the access token
+        const userResponse = await apiClient.get('/users/me', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const userData = userResponse.data;
+
+        if (messageElement) messageElement.textContent = "User details received. Logging in...";
+
+        // Step 3: Update the authStore and log the user in
+        login(userData, accessToken);
+
+        if (messageElement) messageElement.textContent = "Login successful! Redirecting to dashboard...";
+        
+        // Step 4: Redirect to the dashboard
+        window.location.href = '/dashboard';
+
+      } catch (e) {
+        console.error("Error during Google OAuth token exchange or user fetch:", e);
+        let displayError = "Failed to complete Google login. Please try again.";
+        if (e.response && e.response.data && e.response.data.detail) {
+          displayError = e.response.data.detail;
+        } else if (e.message) {
+          displayError = e.message;
+        }
+        if (messageElement) messageElement.textContent = displayError;
+      }
+    }
+
+    // Automatically run the process
+    processGoogleLogin();
   </script>
-</Layout> 
+)} 

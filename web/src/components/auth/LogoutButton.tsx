@@ -1,34 +1,28 @@
-import React from "react";
-import { useAuthStore } from "../../stores/authStore";
-import apiClient from "../../lib/apiClient";
+import React from 'react';
+import { useAuthStore } from '../../stores/authStore';
 
-function LogoutButton() {
+const LogoutButton: React.FC = () => {
   const logout = useAuthStore((state) => state.logout);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const handleLogout = async () => {
-    try {
-      // Call the backend logout endpoint (optional but good practice)
-      // This endpoint might invalidate the cookie/session on the server side
-      await apiClient.post("/auth/jwt/logout");
-    } catch (error) {
-      console.error("Error during backend logout:", error);
-      // Proceed with client-side logout even if backend call fails
-    } finally {
-      // Clear client-side state
-      logout();
-      // Redirect to home page
-      window.location.href = "/";
-    }
+  const handleLogout = () => {
+    logout();
+    // Optional: Redirect to home or login page after logout
+    // window.location.href = '/'; 
   };
+
+  if (!isAuthenticated) {
+    return null; // Don't render if not authenticated
+  }
 
   return (
     <button
       onClick={handleLogout}
-      className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+      className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
     >
       Logout
     </button>
   );
-}
+};
 
 export default LogoutButton; 

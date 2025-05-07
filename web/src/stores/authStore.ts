@@ -17,8 +17,9 @@ interface AuthState {
   user: User | null;
   token: string | null; // Store token if needed, though cookie might be primary mechanism
   setAuthState: (isAuthenticated: boolean, user: User | null, token?: string | null) => void;
-  login: (user: User, token?: string | null) => void;
+  login: (userData: User, token: string) => void;
   logout: () => void;
+  setToken: (token: string | null) => void; // Might be useful for OAuth flows
 }
 
 // Create the store
@@ -30,9 +31,15 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       setAuthState: (isAuthenticated, user, token = null) =>
         set({ isAuthenticated, user, token }),
-      login: (user, token = null) =>
-        set({ isAuthenticated: true, user, token }),
-      logout: () => set({ isAuthenticated: false, user: null, token: null }),
+      login: (userData, token) => set({ isAuthenticated: true, user: userData, token }),
+      logout: () => {
+        // TODO: Call API endpoint to invalidate session/token on backend if necessary
+        set({ isAuthenticated: false, user: null, token: null });
+        // Optionally clear other related storage or redirect
+        // localStorage.removeItem('some-other-key'); // Example
+        // window.location.href = '/login'; // Example redirect
+      },
+      setToken: (token) => set({ token }), // Could also update isAuthenticated based on token presence
     }),
     {
       name: "auth-storage", // Name of the item in storage (localStorage by default)
@@ -45,4 +52,7 @@ export const useAuthStore = create<AuthState>()(
 
 // Optional: Selector for convenience
 export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated;
-export const selectUser = (state: AuthState) => state.user; 
+export const selectUser = (state: AuthState) => state.user;
+
+// Optional: Export actions separately if preferred for component usage
+// export const { login, logout, setToken } = useAuthStore.getState(); 

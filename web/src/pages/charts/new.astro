@@ -1,9 +1,11 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import CreateChartForm from '../../components/charts/CreateChartForm';
+import BirthDataForm from '@/components/charts/BirthDataForm.tsx';
 ---
 
-<Layout title="Create New Chart">
-  <h1 class="text-3xl font-bold mb-6 text-center">Create a New Natal Chart</h1>
-  <CreateChartForm client:load />
+<Layout title="New Chart - AstroTracker">
+  <div class="container mx-auto">
+    {/* The BirthDataForm component will be rendered here */}
+    <BirthDataForm client:load />
+  </div>
 </Layout> 
