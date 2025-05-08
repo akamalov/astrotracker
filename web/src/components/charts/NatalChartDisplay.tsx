@@ -12,9 +12,9 @@ interface PlanetPosition {
 }
 
 interface HouseCusp {
-  house_number: number;
+  cusp: number;
   sign: string;
-  longitude: number;
+  absolute_position: number;
 }
 
 interface Aspect {
@@ -33,11 +33,12 @@ interface ChartData {
   [key: string]: any; // Keep flexible for other basic info
 
   // Astrological Data (Actual names/structure might differ)
-  planets?: PlanetPosition[]; 
-  houses?: HouseCusp[]; 
-  aspects?: Aspect[]; 
-  ascendant_longitude?: number; 
-  mc_longitude?: number;      
+  astrological_data?: {
+    info?: any; // Keep flexible for now
+    planets?: PlanetPosition[]; 
+    houses?: HouseCusp[];
+    aspects?: Aspect[]; 
+  };
 }
 // --- End of Interfaces ---
 
@@ -104,16 +105,15 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
   const planetRadius = houseLabelRadius - 15; // Place planets inside house labels
 
   const astroData = chartData.astrological_data;
-  const hasPlanetData = astroData?.planets;
-  const hasHouseData = astroData?.houses;
+  const planets = astroData?.planets || [];
+  const houses = astroData?.houses || [];
+  const aspects = astroData?.aspects || [];
+  
+  const hasPlanetData = planets.length > 0;
+  const hasHouseData = houses.length > 0;
   const hasAstroData = hasPlanetData || hasHouseData; // Render wheel if we have something
 
-  // Extract data safely
-  // Handle planets being an object in placeholder data, but potentially an array later
-  const planetsArray = hasPlanetData 
-    ? (Array.isArray(astroData.planets) ? astroData.planets : Object.values(astroData.planets))
-    : [];
-  const houses = hasHouseData ? astroData.houses : [];
+  const planetsArray = planets;
 
   return (
     <div className="p-4 sm:p-6 border border-gray-200 rounded-lg shadow-lg bg-white">
@@ -175,19 +175,19 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
               <g id="house-cusps" stroke="#9ca3af" strokeWidth="0.5"> {/* gray-400 */}
                 {houses.map((house) => {
                   // Calculate end point of cusp line
-                  const cuspEndPos = degreesToSvgCoords(house.longitude, houseCuspLineRadius, center);
+                  const cuspEndPos = degreesToSvgCoords(house.absolute_position, houseCuspLineRadius, center);
                   // Calculate position for house number label
-                  const labelPos = degreesToSvgCoords(house.longitude + 2, houseLabelRadius, center); // Offset slightly into the house
+                  const labelPos = degreesToSvgCoords(house.absolute_position + 2, houseLabelRadius, center); // Offset slightly into the house
 
                   // Style ASC and MC lines differently (optional but common)
-                  const isAxis = house.house_number === 1 || house.house_number === 10;
+                  const isAxis = house.cusp === 1 || house.cusp === 10;
                   const lineStyle = {
                     stroke: isAxis ? '#374151' : '#9ca3af', // gray-700 for axes, gray-400 otherwise
                     strokeWidth: isAxis ? 1 : 0.5,
                   };
 
                   return (
-                    <g key={`house-${house.house_number}`}>
+                    <g key={`house-${house.cusp}`}>
                       <line 
                         x1={center} 
                         y1={center} 
@@ -203,7 +203,7 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
                         dominantBaseline="central"
                         fill="#6b7280" // gray-500
                       >
-                        {house.house_number}
+                        {house.cusp}
                       </text>
                     </g>
                   );
@@ -214,7 +214,7 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
               <g id="planets" fill="#1f2937"> {/* gray-800 */}
                 {planetsArray.map((planet) => {
                   // Use absolute_position if available (like placeholder), otherwise longitude
-                  const degree = planet.absolute_position ?? planet.longitude;
+                  const degree = planet.longitude;
                   if (typeof degree !== 'number') return null; // Skip if no position
 
                   const planetPos = degreesToSvgCoords(degree, planetRadius, center);
@@ -248,14 +248,6 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
             </text>
           )}
         </svg>
-      </div>
-
-      {/* Section to display raw chart data for debugging/development */}
-      <div className="mt-6 sm:mt-8 pt-4 border-t border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-700 mb-2">Raw Chart Data (for debugging):</h3>
-        <pre className="mt-2 p-3 bg-gray-50 text-xs text-gray-700 rounded-md overflow-x-auto shadow-sm border border-gray-200">
-          {JSON.stringify(chartData, null, 2)}
-        </pre>
       </div>
     </div>
   );
