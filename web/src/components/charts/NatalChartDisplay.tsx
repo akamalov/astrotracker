@@ -191,7 +191,7 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
                   const labelPos = degreesToSvgCoords(labelAngle, houseLabelRadius, center);
                   const isAxis = house.cusp === 1 || house.cusp === 10;
                   const lineStyle = {
-                    stroke: isAxis ? '#e5e7eb' : '#6b7280',
+                    stroke: 'pink',
                     strokeWidth: isAxis ? 0.7 : 0.3,
                   };
                   return (
@@ -229,7 +229,7 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
                     }
                     const p1Coords = degreesToSvgCoords(planet1.longitude, aspectLineInnerRadius, center);
                     const p2Coords = degreesToSvgCoords(planet2.longitude, aspectLineInnerRadius, center);
-                    const style = aspectStyles[aspect.aspect_name.toLowerCase()] || { stroke: '#6b7280', strokeDasharray: '1 1', strokeWidth: 0.5 };
+                    const style = aspectStyles[aspect.aspect_name.toLowerCase()] || { stroke: 'yellow', strokeDasharray: '1 1', strokeWidth: 0.5 };
                     return (
                       <line
                         key={`aspect-${index}`}
@@ -304,10 +304,10 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
                     {ZODIAC_SIGNS.find(s => s.name === planet.sign)?.symbol || '?'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-right">
-                    {planet.longitude?.toFixed(2)}°
+                    {typeof planet.longitude === 'number' ? `${planet.longitude.toFixed(2)}°` : '-'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-right">
-                    {planet.deg_within_sign?.toFixed(2)}°
+                    {typeof planet.deg_within_sign === 'number' ? `${planet.deg_within_sign.toFixed(2)}°` : '-'}
                   </td>
                 </tr>
               ))}
@@ -315,6 +315,84 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
           </table>
         </div>
       )}
+
+      {/* Aspect Data Table */}
+      {hasAspectData && (
+        <div className="mt-8 overflow-x-auto">
+          <h3 className="text-xl font-semibold text-gray-100 mb-3 text-center sm:text-left">Astrological Aspects</h3>
+          <table className="min-w-full divide-y divide-gray-700 border border-gray-700 rounded-lg">
+            <thead className="bg-gray-800">
+              <tr>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Planet 1</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Aspect</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Planet 2</th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Orb (°)</th>
+              </tr>
+            </thead>
+            <tbody className="bg-gray-800/50 divide-y divide-gray-700">
+              {aspects.map((aspect: Aspect, index: number) => (
+                <tr key={`aspect-row-${index}`} className="hover:bg-gray-700/50 transition-colors duration-150">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-100">
+                    {aspect.p1_name}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
+                    {aspect.aspect_name}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-100">
+                    {aspect.p2_name}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-right">
+                    {aspect.orb?.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* House Cusps Data Table */}
+      {hasHouseData && (
+        <div className="mt-8 overflow-x-auto">
+          <h3 className="text-xl font-semibold text-gray-100 mb-3 text-center sm:text-left">House Cusps</h3>
+          <table className="min-w-full divide-y divide-gray-700 border border-gray-700 rounded-lg">
+            <thead className="bg-gray-800">
+              <tr>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">House</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sign</th>
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Glyph</th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Longitude</th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Position in Sign</th>
+              </tr>
+            </thead>
+            <tbody className="bg-gray-800/50 divide-y divide-gray-700">
+              {houses.map((house: HouseCusp, index: number) => {
+                const positionInSign = house.absolute_position % 30;
+                return (
+                  <tr key={`house-cusp-row-${index}`} className="hover:bg-gray-700/50 transition-colors duration-150">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-100">
+                      {house.cusp}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
+                      {house.sign}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-center text-lg">
+                      {ZODIAC_SIGNS.find(s => s.name === house.sign)?.symbol || '?'}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-right">
+                      {typeof house.absolute_position === 'number' ? `${house.absolute_position.toFixed(2)}°` : '-'}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-right">
+                      {typeof positionInSign === 'number' ? `${positionInSign.toFixed(2)}°` : '-'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
     </div>
   );
 };

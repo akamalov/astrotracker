@@ -1,0 +1,37 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+## JSX Parsing Error: Expected ")" but found "x"
+
+**Date First Observed:** Around 2024-07-27 (during chart display component development)
+**Last Observed:** 2024-07-28
+
+**Affected Files/Components:**
+*   `astrotracker/web/src/components/charts/NatalChartDisplay.tsx` (primarily in table cell rendering)
+
+**<DIAGNOSE>**
+*   **Error Message:** `Expected ")" but found "x"`
+*   **Symptoms:** Frontend build failures (esbuild), errors visible in the browser console and terminal output during `pnpm dev`.
+*   **Context:** Occurred when rendering numerical data (e.g., planet longitudes, degrees within sign) followed immediately by a symbol (e.g., `°`) within JSX expressions in React components.
+
+**<REASONING & ROOT CAUSE>**
+*   **Initial Assumption:** The JSX parser was misinterpreting the combination of a number (potentially after `toFixed()`) and an immediately following non-alphanumeric character like the degree symbol (`°`).
+*   **Root Cause:** The JavaScript/JSX parser requires clear separation or string context when concatenating expressions with literal symbols. Directly placing a symbol after a number or a function call like `toFixed()` without explicit string conversion or template literal usage can lead to parsing ambiguity.
+
+**<ATTEMPTED FIXES & EVOLUTION>**
+1.  **Attempt 1: Template Literals**
+    *   **Fix:** Wrapping the expression and the symbol in template literals. Example: ``{`${planet.longitude?.toFixed(2)}°`}``
+    *   **Outcome:** This resolved the issue in many cases but proved not to be fully robust, especially when dealing with potentially `undefined` or `null` values before `toFixed()` if the optional chaining (`?.`) wasn't perfectly aligned with the data structure expectations, or if `toFixed` was called on a non-numeric type inadvertently.
+
+2.  **Attempt 2 (Successful): Conditional Rendering & Explicit Type Checking**
+    *   **Fix:** Adding a type check before calling `toFixed()` and providing a fallback for non-numeric values. The entire expression, including the symbol, is then wrapped in a template literal.
+    *   **Example:** `{typeof planet.longitude === 'number' ? `${planet.longitude.toFixed(2)}°` : '-'}`
+    *   **Outcome:** This approach proved to be robust. It ensures `toFixed()` is only called on numbers, preventing runtime errors, and clearly handles the concatenation with the degree symbol, satisfying the JSX parser. It also provides a clean fallback display (`-`) for missing or invalid data.
+
+**<LESSONS LEARNED & PREVENTION>**
+*   When combining numerical expressions with literal symbols in JSX, always ensure clear string context using template literals.
+*   For values that might not be numbers (e.g., from API responses, optional properties), always perform a type check (e.g., `typeof value === 'number'`) before attempting numerical operations like `toFixed()`.
+*   Provide graceful fallbacks in the UI for missing or invalid data to prevent rendering errors and improve user experience.
+*   Be mindful of JavaScript's type coercion and how it interacts with JSX parsing, especially with numeric operations and string concatenation.
