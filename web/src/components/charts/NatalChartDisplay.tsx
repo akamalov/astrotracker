@@ -1,107 +1,36 @@
 import React from 'react';
-
-// --- Updated Interfaces (Anticipated Structure) ---
-interface PlanetPosition {
-  name: string;
-  sign: string;
-  sign_symbol?: string; // Optional glyph
-  longitude: number;
-  deg_within_sign?: number;
-  is_retrograde?: boolean;
-  absolute_position?: number;
-}
-
-interface HouseCusp {
-  cusp: number;
-  sign: string;
-  absolute_position: number;
-}
-
-interface Aspect {
-   p1_name: string;
-   p2_name: string;
-   aspect_name: string;
-   orb: number;
-   aspect_degrees?: number;
-}
-
-// Main data structure expected from API
-interface ChartData {
-  id: string;
-  name: string;
-  birth_datetime?: string;
-  city?: string;
-  [key: string]: any; // Keep flexible for other basic info
-
-  // Astrological Data (Actual names/structure might differ)
-  astrological_data?: {
-    info?: any; // Keep flexible for now
-    planets?: { [key: string]: PlanetPosition }; // Corrected type
-    houses?: HouseCusp[];
-    aspects?: Aspect[];
-  };
-}
-// --- End of Interfaces ---
+import { PLANET_GLYPHS, SIGN_SYMBOLS, SIGN_FULL_NAMES, ZODIAC_SIGNS } from '../../utils/astrologyConstants';
+import type { ChartData, PlanetPosition, Aspect, HouseCusp } from '../../types/astrologyTypes';
 
 interface NatalChartDisplayProps {
-  chartData: ChartData | null;
+  chartData: ChartData;
 }
 
-// --- SVG Helper Functions and Constants ---
+// Helper functions for SVG math
+function degreesToRadians(deg: number) {
+  return (deg - 90) * (Math.PI / 180);
+}
 
-const ZODIAC_SIGNS = [
-  { name: 'Aries', symbol: '♈' }, { name: 'Taurus', symbol: '♉' }, { name: 'Gemini', symbol: '♊' },
-  { name: 'Cancer', symbol: '♋' }, { name: 'Leo', symbol: '♌' }, { name: 'Virgo', symbol: '♍' },
-  { name: 'Libra', symbol: '♎' }, { name: 'Scorpio', symbol: '♏' }, { name: 'Sagittarius', symbol: '♐' },
-  { name: 'Capricorn', symbol: '♑' }, { name: 'Aquarius', symbol: '♒' }, { name: 'Pisces', symbol: '♓' }
-];
+function round(num: number, decimals = 2) {
+  return Number(num.toFixed(decimals));
+}
 
-// Define planet glyphs
-const PLANET_GLYPHS: { [key: string]: string } = {
-  Sun: '☉', Moon: '☽', Mercury: '☿', Venus: '♀', Mars: '♂',
-  Jupiter: '♃', Saturn: '♄', Uranus: '♅', Neptune: '♆', Pluto: '♇',
-  "Ascendant": "Asc",
-  "Medium_Coeli": "MC",
-  "Descendant": "Desc",
-  "IC": "IC",
-  "Chiron": "Chi",
-  "Mean_Lilith": "Lil",
-  "Mean_Node": "NN",
-  "True_Node": "NN",
-  "Mean_South_Node": "SN",
-  "True_South_Node": "SN"
-};
-
-// Function to convert astrological degrees to SVG coordinates
-const degreesToSvgCoords = (degree: number, radius: number, center: number): { x: number; y: number } => {
-  const svgAngleRad = ((degree - 90) * Math.PI) / 180;
-  const x = center + radius * Math.cos(svgAngleRad);
-  const y = center + radius * Math.sin(svgAngleRad);
-  const precision = 5;
+function degreesToSvgCoords(deg: number, radius: number, center: number) {
+  const rad = degreesToRadians(deg);
   return {
-    x: parseFloat(x.toFixed(precision)),
-    y: parseFloat(y.toFixed(precision))
+    x: round(center + radius * Math.cos(rad), 2),
+    y: round(center + radius * Math.sin(rad), 2),
   };
-};
-
-// Function to describe an SVG arc path
-const describeArc = (x: number, y: number, radius: number, startAngleDeg: number, endAngleDeg: number): string => {
-    const start = degreesToSvgCoords(startAngleDeg, radius, x);
-    const end = degreesToSvgCoords(endAngleDeg, radius, y);
-    const largeArcFlag = endAngleDeg - startAngleDeg <= 180 ? "0" : "1";
-    const d = [
-        "M", start.x, start.y,
-        "A", radius, radius, 0, largeArcFlag, 1, end.x, end.y
-    ].join(" ");
-    return d;
 }
 
-// --- Component Implementation ---
-const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
-  if (!chartData) {
-    return <p className="text-center text-gray-500 py-8">Loading chart data or chart not found...</p>;
-  }
+export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps) {
+  const { planets, aspects, houses } = chartData.astrological_data || {};
+  console.log("Planet names in chart:", Object.values(planets || {}).map((p: any) => p.name));
+  const hasPlanetData = planets && typeof planets === 'object' && !Array.isArray(planets);
+  const hasAspectData = Array.isArray(aspects) && aspects.length > 0;
+  const hasHouseData = Array.isArray(houses) && houses.length > 0;
 
+  // SVG chart dimensions
   const svgSize = 500;
   const center = svgSize / 2;
   const zodiacOuterRadius = svgSize * 0.45;
@@ -110,48 +39,26 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
   const houseCuspLineRadius = zodiacInnerRadius;
   const houseLabelRadius = zodiacInnerRadius - 10;
   const planetRingRadius = houseLabelRadius - 20;
-  const aspectLineInnerRadius = svgSize * 0.1;
 
-  const { name } = chartData;
-  const astroData = chartData.astrological_data;
-  const planets = astroData?.planets || {};
-  const houses = astroData?.houses || [];
-  const aspects = astroData?.aspects || [];
-
-  const planetPositionsMap = new Map<string, PlanetPosition>();
-  if (planets && typeof planets === 'object' && !Array.isArray(planets)) {
-    (Object.values(planets) as PlanetPosition[]).forEach(p => {
-      if (p && p.name && typeof p.longitude === 'number') {
-        planetPositionsMap.set(p.name, p);
-      }
-    });
+  // Helper for SVG arc
+  function describeArc(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
+    const start = degreesToSvgCoords(startAngle, r, cx);
+    const end = degreesToSvgCoords(endAngle, r, cx);
+    const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
+    return [
+      'M', start.x, start.y,
+      'A', r, r, 0, largeArcFlag, 1, end.x, end.y
+    ].join(' ');
   }
-
-  const hasPlanetData = planetPositionsMap.size > 0;
-  const hasHouseData = houses.length > 0;
-  const hasAspectData = aspects.length > 0;
-  const hasAstroData = hasPlanetData || hasHouseData;
-
-  const aspectStyles: { [key: string]: { stroke: string; strokeDasharray?: string, strokeWidth?: number } } = {
-    'Conjunction': { stroke: 'blue', strokeWidth: 1.5 },
-    'Sextile': { stroke: '#3b82f6', strokeDasharray: '4 2', strokeWidth: 1 },
-    'Square': { stroke: 'red', strokeWidth: 1.5 },
-    'Trine': { stroke: 'green', strokeWidth: 1.5 },
-    'Opposition': { stroke: '#b91c1c', strokeWidth: 1.5 },
-    'Quincunx': { stroke: 'orange', strokeDasharray: '2 2', strokeWidth: 1 },
-    'SemiSextile': { stroke: 'teal', strokeDasharray: '3 1', strokeWidth: 1 },
-  };
 
   return (
     <div className="p-4 sm:p-6 border border-gray-700 rounded-lg shadow-lg bg-gray-900 text-gray-200">
       <h2 className="text-2xl sm:text-3xl font-bold text-gray-100 mb-4 sm:mb-6 text-center">{chartData.name || 'Unnamed Chart'}</h2>
+
+      {/* SVG Chart Wheel */}
       <div className="mb-6 w-full flex justify-center">
-        <svg
-          width={svgSize}
-          height={svgSize}
-          viewBox={`0 0 ${svgSize} ${svgSize}`}
-          className="rounded-full"
-        >
+        <svg width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`} className="rounded-full">
+          {/* Zodiac ring */}
           <g id="zodiac-ring">
             {ZODIAC_SIGNS.map((sign, index) => {
               const startAngle = index * 30;
@@ -159,117 +66,106 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
               const midAngle = startAngle + 15;
               const arcPath = describeArc(center, center, zodiacOuterRadius, startAngle, endAngle) +
                               ` L ${degreesToSvgCoords(endAngle, zodiacInnerRadius, center).x} ${degreesToSvgCoords(endAngle, zodiacInnerRadius, center).y}` +
-                              describeArc(center, center, zodiacInnerRadius, endAngle, startAngle) +
-                              ` L ${degreesToSvgCoords(startAngle, zodiacOuterRadius, center).x} ${degreesToSvgCoords(startAngle, zodiacOuterRadius, center).y}`;
-              const glyphPos = degreesToSvgCoords(midAngle, signGlyphRadius, center);
-              const fill = index % 2 === 0 ? '#374151' : '#4b5563';
-
+                              ` A ${zodiacInnerRadius} ${zodiacInnerRadius} 0 0 0 ${degreesToSvgCoords(startAngle, zodiacInnerRadius, center).x} ${degreesToSvgCoords(startAngle, zodiacInnerRadius, center).y}` +
+                              ' Z';
+              const fill = index % 2 === 0 ? '#181d28' : '#23293a';
+              const mid = degreesToSvgCoords(midAngle, signGlyphRadius, center);
               return (
-                <g key={sign.name}>
-                  <path d={arcPath} fill={fill} stroke="#1f2937" strokeWidth="0.5" />
-                  <text
-                    x={glyphPos.x}
-                    y={glyphPos.y}
-                    fontSize="18"
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fill="#d1d5db"
-                  >
-                    {sign.symbol}
+                <g key={sign}>
+                  <path d={arcPath} fill={fill} stroke="#444" strokeWidth={1} />
+                  <text x={mid.x} y={mid.y} fontSize="22" textAnchor="middle" dominantBaseline="central" fill="#b6b6e0">
+                    {SIGN_SYMBOLS[sign]}
                   </text>
                 </g>
               );
             })}
           </g>
 
-          {hasAstroData && (
-            <g id="chart-wheel">
-              <g id="house-cusps" stroke="#6b7280" strokeWidth="0.3">
-                {houses.map((house: HouseCusp) => {
-                  const cuspEndPos = degreesToSvgCoords(house.absolute_position, houseCuspLineRadius, center);
-                  const labelAngle = house.absolute_position + (30 / 15);
-                  const labelPos = degreesToSvgCoords(labelAngle, houseLabelRadius, center);
-                  const isAxis = house.cusp === 1 || house.cusp === 10;
-                  const lineStyle = {
-                    stroke: 'pink',
-                    strokeWidth: isAxis ? 0.7 : 0.3,
-                  };
-                  return (
-                    <g key={`house-${house.cusp}`}>
-                      <line
-                        x1={center}
-                        y1={center}
-                        x2={cuspEndPos.x}
-                        y2={cuspEndPos.y}
-                        style={lineStyle}
-                      />
-                      <text
-                        x={labelPos.x}
-                        y={labelPos.y}
-                        fontSize="10"
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        fill="#9ca3af"
-                      >
-                        {house.cusp}
-                      </text>
-                    </g>
-                  );
-                })}
-              </g>
+          {/* Zodiac sector lines (every 30°) */}
+          <g id="zodiac-sector-lines">
+            {Array.from({ length: 12 }).map((_, i) => {
+              const angle = i * 30;
+              const start = degreesToSvgCoords(angle, 0, center);
+              const end = degreesToSvgCoords(angle, zodiacOuterRadius, center);
+              return (
+                <line
+                  key={i}
+                  x1={start.x}
+                  y1={start.y}
+                  x2={end.x}
+                  y2={end.y}
+                  stroke="#8884"
+                  strokeWidth={1}
+                />
+              );
+            })}
+          </g>
 
-              {hasAspectData && (
-                <g id="aspects">
-                  {aspects.map((aspect: Aspect, index: number) => {
-                    const planet1 = planetPositionsMap.get(aspect.p1_name);
-                    const planet2 = planetPositionsMap.get(aspect.p2_name);
-                    if (!planet1 || !planet2) {
-                      console.warn(`Could not find planet positions for aspect: ${aspect.p1_name} to ${aspect.p2_name}`);
-                      return null;
-                    }
-                    const p1Coords = degreesToSvgCoords(planet1.longitude, aspectLineInnerRadius, center);
-                    const p2Coords = degreesToSvgCoords(planet2.longitude, aspectLineInnerRadius, center);
-                    const style = aspectStyles[aspect.aspect_name.toLowerCase()] || { stroke: 'yellow', strokeDasharray: '1 1', strokeWidth: 0.5 };
-                    return (
-                      <line
-                        key={`aspect-${index}`}
-                        x1={p1Coords.x}
-                        y1={p1Coords.y}
-                        x2={p2Coords.x}
-                        y2={p2Coords.y}
-                        stroke={style.stroke}
-                        strokeWidth={style.strokeWidth || 0.5}
-                        strokeDasharray={style.strokeDasharray || undefined}
-                      />
-                    );
-                  })}
-                </g>
-              )}
+          {/* House cusp lines */}
+          <g id="house-cusps">
+            {hasHouseData && houses.map((house: HouseCusp, idx: number) => {
+              const angle = house.absolute_position;
+              const start = degreesToSvgCoords(angle, 0, center);
+              const end = degreesToSvgCoords(angle, houseCuspLineRadius, center);
+              return (
+                <line
+                  key={idx}
+                  x1={start.x}
+                  y1={start.y}
+                  x2={end.x}
+                  y2={end.y}
+                  stroke="pink"
+                  strokeWidth={idx % 3 === 0 ? 0.7 : 0.3}
+                />
+              );
+            })}
+          </g>
 
-              <g id="planets" fill="#f3f4f6">
-                {planets && typeof planets === 'object' && !Array.isArray(planets) &&
-                  (Object.values(planets) as PlanetPosition[]).map((planet: PlanetPosition) => {
-                  const degree = planet?.longitude;
-                  if (typeof degree !== 'number') return null;
-                  const planetPos = degreesToSvgCoords(degree, planetRingRadius, center);
-                  const glyph = PLANET_GLYPHS[planet.name] || '?';
-                  return (
-                    <text
-                      key={planet.name}
-                      x={planetPos.x}
-                      y={planetPos.y}
-                      fontSize="16"
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      className="planet-glyph"
-                    >
-                      {glyph}
-                    </text>
-                  );
-                })}
-              </g>
-            </g>
-          )}
+          {/* Aspect lines (yellow) */}
+          <g id="aspect-lines">
+            {hasAspectData && aspects.map((aspect: Aspect, idx: number) => {
+              const p1 = planets?.[aspect.p1_name];
+              const p2 = planets?.[aspect.p2_name];
+              if (!p1 || !p2) return null;
+              const pos1 = degreesToSvgCoords(p1.longitude, planetRingRadius, center);
+              const pos2 = degreesToSvgCoords(p2.longitude, planetRingRadius, center);
+              return (
+                <line
+                  key={idx}
+                  x1={pos1.x}
+                  y1={pos1.y}
+                  x2={pos2.x}
+                  y2={pos2.y}
+                  stroke="#FFD600"
+                  strokeWidth={1}
+                  opacity={0.7}
+                />
+              );
+            })}
+          </g>
+
+          {/* Planet glyphs */}
+          <g id="planets" fill="#f3f4f6">
+            {hasPlanetData && Object.values(planets as Record<string, PlanetPosition>).map((planet: PlanetPosition) => {
+              const degree = planet?.longitude;
+              if (typeof degree !== 'number') return null;
+              const planetPos = degreesToSvgCoords(degree, planetRingRadius, center);
+              const glyph = PLANET_GLYPHS[planet.name] || '?';
+              return (
+                <text
+                  key={planet.name}
+                  x={planetPos.x}
+                  y={planetPos.y}
+                  fontSize="16"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  className="planet-glyph"
+                >
+                  {glyph}
+                </text>
+              );
+            })}
+          </g>
         </svg>
       </div>
 
@@ -280,28 +176,28 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
           <table className="min-w-full divide-y divide-gray-700 border border-gray-700 rounded-lg">
             <thead className="bg-gray-800">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Planet</th>
-                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Glyph</th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sign</th>
-                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Sign Glyph</th>
-                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Longitude</th>
-                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Position in Sign</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Planet</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Glyph</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sign</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Sign Glyph</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Longitude</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Deg in Sign</th>
               </tr>
             </thead>
-            <tbody className="bg-gray-800/50 divide-y divide-gray-700">
-              {(Object.values(planets) as PlanetPosition[]).map((planet) => (
-                <tr key={planet.name} className="hover:bg-gray-700/50 transition-colors duration-150">
+            <tbody className="bg-gray-900 divide-y divide-gray-800">
+              {Object.values(planets as Record<string, PlanetPosition>).map((planet) => (
+                <tr key={planet.name}>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-100">
-                    {planet.name}{planet.is_retrograde ? ' (R)' : ''}
+                    {planet.name}{planet.retrograde ? ' (R)' : ''}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-center text-lg">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
                     {PLANET_GLYPHS[planet.name] || '?'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
-                    {planet.sign}
+                    {SIGN_FULL_NAMES[planet.sign] || planet.sign}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-center text-lg">
-                    {ZODIAC_SIGNS.find(s => s.name === planet.sign)?.symbol || '?'}
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
+                    {SIGN_SYMBOLS[planet.sign] || '?'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-right">
                     {typeof planet.longitude === 'number' ? `${planet.longitude.toFixed(2)}°` : '-'}
@@ -319,30 +215,30 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
       {/* Aspect Data Table */}
       {hasAspectData && (
         <div className="mt-8 overflow-x-auto">
-          <h3 className="text-xl font-semibold text-gray-100 mb-3 text-center sm:text-left">Astrological Aspects</h3>
+          <h3 className="text-xl font-semibold text-gray-100 mb-3 text-center sm:text-left">Aspects</h3>
           <table className="min-w-full divide-y divide-gray-700 border border-gray-700 rounded-lg">
             <thead className="bg-gray-800">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Planet 1</th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Aspect</th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Planet 2</th>
-                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Orb (°)</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Planet 1</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Aspect</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Planet 2</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Orb</th>
               </tr>
             </thead>
-            <tbody className="bg-gray-800/50 divide-y divide-gray-700">
-              {aspects.map((aspect: Aspect, index: number) => (
-                <tr key={`aspect-row-${index}`} className="hover:bg-gray-700/50 transition-colors duration-150">
+            <tbody className="bg-gray-900 divide-y divide-gray-800">
+              {aspects.map((aspect: Aspect, idx: number) => (
+                <tr key={idx}>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-100">
                     {aspect.p1_name}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
                     {aspect.aspect_name}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-100">
                     {aspect.p2_name}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-right">
-                    {aspect.orb?.toFixed(2)}
+                    {typeof aspect.orb === 'number' ? aspect.orb.toFixed(2) : '-'}
                   </td>
                 </tr>
               ))}
@@ -358,32 +254,34 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
           <table className="min-w-full divide-y divide-gray-700 border border-gray-700 rounded-lg">
             <thead className="bg-gray-800">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">House</th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sign</th>
-                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Glyph</th>
-                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Longitude</th>
-                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Position in Sign</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">House</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sign</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Glyph</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Longitude</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Deg in Sign</th>
               </tr>
             </thead>
-            <tbody className="bg-gray-800/50 divide-y divide-gray-700">
-              {houses.map((house: HouseCusp, index: number) => {
-                const positionInSign = house.absolute_position % 30;
+            <tbody className="bg-gray-900 divide-y divide-gray-800">
+              {houses.map((house: HouseCusp, idx: number) => {
+                const sign = SIGN_FULL_NAMES[house.sign] || house.sign;
+                const glyph = SIGN_SYMBOLS[house.sign] || '?';
+                const positionInSign = typeof house.absolute_position === 'number' ? house.absolute_position % 30 : null;
                 return (
-                  <tr key={`house-cusp-row-${index}`} className="hover:bg-gray-700/50 transition-colors duration-150">
+                  <tr key={idx}>
                     <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-100">
-                      {house.cusp}
+                      {house.house_number}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
-                      {house.sign}
+                      {sign}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-center text-lg">
-                      {ZODIAC_SIGNS.find(s => s.name === house.sign)?.symbol || '?'}
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
+                      {glyph}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-right">
                       {typeof house.absolute_position === 'number' ? `${house.absolute_position.toFixed(2)}°` : '-'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 text-right">
-                      {typeof positionInSign === 'number' ? `${positionInSign.toFixed(2)}°` : '-'}
+                      {positionInSign !== null ? `${positionInSign.toFixed(2)}°` : '-'}
                     </td>
                   </tr>
                 );
@@ -392,10 +290,7 @@ const NatalChartDisplay: React.FC<NatalChartDisplayProps> = ({ chartData }) => {
           </table>
         </div>
       )}
-
     </div>
   );
-};
-
-export default NatalChartDisplay;
+}
 
