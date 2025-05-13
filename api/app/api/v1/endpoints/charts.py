@@ -177,6 +177,14 @@ async def create_chart_endpoint(
         raise HTTPException(status_code=500, detail="Error preparing user for chart creation.")
     # --- END TEMPORARY DUMMY USER LOGIC ---
 
+    # --- Geocode city and set coordinates ---
+    lat, lon = await get_coordinates_for_city(chart_in.city, db)
+    if lat is None or lon is None:
+        logger.error(f"Could not geocode city: {chart_in.city}")
+        raise HTTPException(status_code=400, detail=f"Could not geocode city: {chart_in.city}")
+
+    chart_in = chart_in.copy(update={"latitude": lat, "longitude": lon})
+
     try:
         new_chart = await chart_crud.create(
             obj_in=chart_in, user_id=user_id_to_use
@@ -336,6 +344,84 @@ async def get_chart_transits_endpoint(
 
     return TransitChartResponse(**transit_data)
 
+
+@router.post("/synastry", response_model=SynastryChartResponse)
+async def calculate_synastry_endpoint(
+    request: CalculateSynastryRequest,
+    chart_crud: CRUDChart = Depends(get_crud_chart),
+    db: AsyncSession = Depends(get_async_session),
+):
+    # Fetch both charts
+    chart1 = await chart_crud.get(id=request.chart1_id)
+    chart2 = await chart_crud.get(id=request.chart2_id)
+    if not chart1 or not chart2:
+        raise HTTPException(status_code=404, detail="One or both charts not found")
+    # Calculate natal chart data for both
+    calc1 = NatalChartCalculator(
+        name=chart1.name,
+        birth_dt=chart1.birth_datetime,
+        city=chart1.city,
+        latitude=chart1.latitude,
+        longitude=chart1.longitude
+    )
+    natal1 = await calc1.calculate_chart()
+    calc2 = NatalChartCalculator(
+        name=chart2.name,
+        birth_dt=chart2.birth_datetime,
+        city=chart2.city,
+        latitude=chart2.latitude,
+        longitude=chart2.longitude
+    )
+    natal2 = await calc2.calculate_chart()
+    # Calculate synastry (sync, so use run_in_threadpool)
+    synastry_data = await run_in_threadpool(calculate_synastry, natal1, natal2)
+    return SynastryChartResponse(
+        chart1_id=request.chart1_id,
+        chart1_name=chart1.name,
+        chart2_id=request.chart2_id,
+        chart2_name=chart2.name,
+        aspects=synastry_data.get("aspects", []),
+        calculation_error=synastry_data.get("error")
+    )
+
+@router.post("/composite", response_model=CompositeChartResponse)
+async def calculate_composite_endpoint(
+    request: CalculateCompositeRequest,
+    chart_crud: CRUDChart = Depends(get_crud_chart),
+    db: AsyncSession = Depends(get_async_session),
+):
+    # Fetch both charts
+    chart1 = await chart_crud.get(id=request.chart1_id)
+    chart2 = await chart_crud.get(id=request.chart2_id)
+    if not chart1 or not chart2:
+        raise HTTPException(status_code=404, detail="One or both charts not found")
+    # Calculate natal chart data for both
+    calc1 = NatalChartCalculator(
+        name=chart1.name,
+        birth_dt=chart1.birth_datetime,
+        city=chart1.city,
+        latitude=chart1.latitude,
+        longitude=chart1.longitude
+    )
+    natal1 = await calc1.calculate_chart()
+    calc2 = NatalChartCalculator(
+        name=chart2.name,
+        birth_dt=chart2.birth_datetime,
+        city=chart2.city,
+        latitude=chart2.latitude,
+        longitude=chart2.longitude
+    )
+    natal2 = await calc2.calculate_chart()
+    # Calculate composite (sync, so use run_in_threadpool)
+    composite_data = await run_in_threadpool(calculate_composite_chart, natal1, natal2)
+    return CompositeChartResponse(
+        chart1_id=request.chart1_id,
+        chart1_name=chart1.name,
+        chart2_id=request.chart2_id,
+        chart2_name=chart2.name,
+        composite_planets=composite_data.get("composite_planets"),
+        calculation_error=composite_data.get("error")
+    )
 
 # @router.put("/{chart_id}", response_model=ChartDisplay)
 # async def update_chart_endpoint(...):

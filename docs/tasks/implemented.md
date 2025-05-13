@@ -61,6 +61,14 @@
 
 ## Phase 2: Frontend - Chart Display & Initial Data
 
+- **Interactive Chart Features & Polish (2024-06-10)**
+    * Added interactive Tippy.js tooltips for planet glyphs and aspect lines in the SVG chart (hover/click for details)
+    * Fixed SSR compatibility: render NatalChartDisplay with client:only="react" in Astro to avoid hydration errors with Tippy
+    * Polished Chart Details panel: improved layout, background, and display of city/country and coordinates
+    * Increased chart wheel size and added a legend/key for glyphs and lines
+    * Added Download as PNG feature for chart and legend
+    * See commit: "feat: add interactive Tippy.js tooltips to chart, improve SSR compatibility, and polish Chart Details panel"
+
 9.  **Natal Chart SVG Display Foundation:**
     *   Implemented `NatalChartDisplay.tsx` component to render an SVG-based astrological chart wheel.
     *   Included rendering for Zodiac ring, house cusp lines, and planet glyphs at their calculated positions.

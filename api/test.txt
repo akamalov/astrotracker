@@ -1,0 +1,4 @@
+Using virtualenv: /app/.venv
+Installing dependencies from lock file
+Using virtualenv: /app/.venv
+Installing dependencies from lock file

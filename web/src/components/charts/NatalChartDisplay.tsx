@@ -107,38 +107,98 @@ export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps)
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-8">
-        {/* Customer Data Panel */}
-        <div
-          className="flex-1 min-w-[260px] max-w-[340px] bg-gray-900 rounded-md p-4 mb-6"
-          style={{ minHeight: 180 }}
-        >
-          <div className="text-xl font-extrabold text-pink-300 mb-3 tracking-tight">Chart Details</div>
-          <div className="mb-1 flex">
-            <span className="font-bold text-white w-24">Name:</span>
-            <span className="text-white">{chartData.name || '—'}</span>
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Left Column: Chart Details, Elements, Modes */}
+        <div className="flex flex-col gap-4 min-w-[260px] max-w-[340px] flex-1">
+          {/* Chart Details Card */}
+          <div className="bg-gray-900 rounded-md p-4 mb-0">
+            <h3 className="text-xl font-bold mb-3 text-pink-300">Chart Details</h3>
+            <div className="mb-1 flex">
+              <span className="font-bold text-white w-24">Name:</span>
+              <span className="text-white">{chartData.name || '—'}</span>
+            </div>
+            <div className="mb-1 flex">
+              <span className="font-bold text-white w-24">Birth Date:</span>
+              <span className="text-white">{chartData.birth_datetime ? new Date(chartData.birth_datetime).toLocaleString() : '—'}</span>
+            </div>
+            <div className="mb-1 flex">
+              <span className="font-bold text-white w-24">Location:</span>
+              <span className="text-white">
+                {((chartData.city || chartData.country) && (
+                  <>
+                    {chartData.city}{chartData.city && chartData.country ? ', ' : ''}{chartData.country}
+                    <br />
+                  </>
+                ))}
+                {(typeof chartData.latitude === 'number' && typeof chartData.longitude === 'number')
+                  ? `${chartData.latitude.toFixed(5)}, ${chartData.longitude.toFixed(5)}`
+                  : (!chartData.city && !chartData.country ? '—' : null)}
+              </span>
+            </div>
           </div>
-          <div className="mb-1 flex">
-            <span className="font-bold text-white w-24">Birth Date:</span>
-            <span className="text-white">{chartData.birth_datetime ? new Date(chartData.birth_datetime).toLocaleString() : '—'}</span>
+          {/* Elements Card */}
+          <div className="bg-gray-900 rounded-md p-4">
+            <h3 className="text-lg font-bold mb-2 text-blue-300 flex items-center gap-2">Elements
+              <span className="text-xs text-gray-400"><i className="fa fa-info-circle" /></span>
+            </h3>
+            {/* Bar Chart for Elements */}
+            <div className="w-full max-w-xs mx-auto">
+              {Object.entries(chartData.astrological_data.element_counts).map(([element, count]) => {
+                const colors: Record<string, string> = {
+                  Fire: '#f87171', // red-400
+                  Earth: '#a3e635', // lime-400
+                  Air: '#38bdf8', // sky-400
+                  Water: '#818cf8', // indigo-400
+                };
+                const max = Math.max(...Object.values(chartData.astrological_data.element_counts));
+                const width = max > 0 ? (100 * (count as number) / max) : 0;
+                return (
+                  <div key={element} className="flex items-center mb-1">
+                    <span className="w-14 text-xs text-gray-300">{element}</span>
+                    <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
+                      <div
+                        className="h-4 rounded"
+                        style={{ width: `${width}%`, backgroundColor: colors[element] || '#888' }}
+                      ></div>
+                      <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="mb-1 flex">
-            <span className="font-bold text-white w-24">Location:</span>
-            <span className="text-white">
-              {((chartData.city || chartData.country) && (
-                <>
-                  {chartData.city}{chartData.city && chartData.country ? ', ' : ''}{chartData.country}
-                  <br />
-                </>
-              ))}
-              {(typeof chartData.latitude === 'number' && typeof chartData.longitude === 'number')
-                ? `${chartData.latitude.toFixed(5)}, ${chartData.longitude.toFixed(5)}`
-                : (!chartData.city && !chartData.country ? '—' : null)}
-            </span>
+          {/* Modes Card */}
+          <div className="bg-gray-900 rounded-md p-4">
+            <h3 className="text-lg font-bold mb-2 text-green-300 flex items-center gap-2">Modes
+              <span className="text-xs text-gray-400"><i className="fa fa-info-circle" /></span>
+            </h3>
+            {/* Bar Chart for Modes */}
+            <div className="w-full max-w-xs mx-auto">
+              {Object.entries(chartData.astrological_data.mode_counts).map(([mode, count]) => {
+                const colors: Record<string, string> = {
+                  Cardinal: '#fbbf24', // amber-400
+                  Fixed: '#f472b6', // pink-400
+                  Mutable: '#34d399', // emerald-400
+                };
+                const max = Math.max(...Object.values(chartData.astrological_data.mode_counts));
+                const width = max > 0 ? (100 * (count as number) / max) : 0;
+                return (
+                  <div key={mode} className="flex items-center mb-1">
+                    <span className="w-14 text-xs text-gray-300">{mode}</span>
+                    <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
+                      <div
+                        className="h-4 rounded"
+                        style={{ width: `${width}%`, backgroundColor: colors[mode] || '#888' }}
+                      ></div>
+                      <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
-
-        {/* Chart and legend */}
+        {/* Right: Chart Wheel and Legend */}
         <div className="flex-1 flex flex-col items-center">
           <div ref={chartRef}>
             {/* SVG Chart Wheel */}
@@ -474,111 +534,6 @@ export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps)
               })}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* Element and Mode Balances */}
-      {chartData.astrological_data && (
-        <div className="flex flex-col sm:flex-row justify-center gap-8 mb-4">
-          {/* Elements */}
-          {chartData.astrological_data.element_counts && (
-            <div>
-              <h4 className="text-lg font-semibold text-gray-200 mb-2 text-center">
-                Elements
-                <span
-                  className="ml-1 cursor-pointer text-blue-300 align-middle"
-                  title="Fire: Aries, Leo, Sagittarius — Energetic, passionate.\nEarth: Taurus, Virgo, Capricorn — Practical, grounded.\nAir: Gemini, Libra, Aquarius — Intellectual, social.\nWater: Cancer, Scorpio, Pisces — Emotional, intuitive."
-                  aria-label="Element Info"
-                >
-                  ℹ️
-                </span>
-              </h4>
-              <table className="min-w-[120px] mx-auto text-sm border border-gray-700 rounded-lg mb-2">
-                <tbody>
-                  {Object.entries(chartData.astrological_data.element_counts).map(([element, count]) => (
-                    <tr key={element}>
-                      <td className="px-3 py-1 text-gray-300">{element}</td>
-                      <td className="px-3 py-1 text-right font-mono text-gray-100">{count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {/* Bar Chart for Elements */}
-              <div className="w-full max-w-xs mx-auto">
-                {Object.entries(chartData.astrological_data.element_counts).map(([element, count]) => {
-                  const colors: Record<string, string> = {
-                    Fire: '#f87171', // red-400
-                    Earth: '#a3e635', // lime-400
-                    Air: '#38bdf8', // sky-400
-                    Water: '#818cf8', // indigo-400
-                  };
-                  const max = Math.max(...Object.values(chartData.astrological_data.element_counts));
-                  const width = max > 0 ? (100 * (count as number) / max) : 0;
-                  return (
-                    <div key={element} className="flex items-center mb-1">
-                      <span className="w-14 text-xs text-gray-300">{element}</span>
-                      <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
-                        <div
-                          className="h-4 rounded"
-                          style={{ width: `${width}%`, backgroundColor: colors[element] || '#888' }}
-                        ></div>
-                        <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {/* Modes */}
-          {chartData.astrological_data.mode_counts && (
-            <div>
-              <h4 className="text-lg font-semibold text-gray-200 mb-2 text-center">
-                Modes
-                <span
-                  className="ml-1 cursor-pointer text-blue-300 align-middle"
-                  title="Cardinal: Aries, Cancer, Libra, Capricorn — Initiating, dynamic.\nFixed: Taurus, Leo, Scorpio, Aquarius — Stable, persistent.\nMutable: Gemini, Virgo, Sagittarius, Pisces — Adaptable, flexible."
-                  aria-label="Mode Info"
-                >
-                  ℹ️
-                </span>
-              </h4>
-              <table className="min-w-[120px] mx-auto text-sm border border-gray-700 rounded-lg mb-2">
-                <tbody>
-                  {Object.entries(chartData.astrological_data.mode_counts).map(([mode, count]) => (
-                    <tr key={mode}>
-                      <td className="px-3 py-1 text-gray-300">{mode}</td>
-                      <td className="px-3 py-1 text-right font-mono text-gray-100">{count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {/* Bar Chart for Modes */}
-              <div className="w-full max-w-xs mx-auto">
-                {Object.entries(chartData.astrological_data.mode_counts).map(([mode, count]) => {
-                  const colors: Record<string, string> = {
-                    Cardinal: '#fbbf24', // amber-400
-                    Fixed: '#f472b6', // pink-400
-                    Mutable: '#34d399', // emerald-400
-                  };
-                  const max = Math.max(...Object.values(chartData.astrological_data.mode_counts));
-                  const width = max > 0 ? (100 * (count as number) / max) : 0;
-                  return (
-                    <div key={mode} className="flex items-center mb-1">
-                      <span className="w-14 text-xs text-gray-300">{mode}</span>
-                      <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
-                        <div
-                          className="h-4 rounded"
-                          style={{ width: `${width}%`, backgroundColor: colors[mode] || '#888' }}
-                        ></div>
-                        <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

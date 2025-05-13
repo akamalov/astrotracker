@@ -395,6 +395,65 @@ class NatalChartCalculator:
             #     # Optionally, you could try the _houses_list approach here as a fallback if desired,
             #     # but it was proving unreliable. For now, prefer empty if standard fails.
 
+            # --- Element and Mode Calculation ---
+            ELEMENT_MAP = {
+                "Aries": "Fire", "Leo": "Fire", "Sagittarius": "Fire",
+                "Taurus": "Earth", "Virgo": "Earth", "Capricorn": "Earth",
+                "Gemini": "Air", "Libra": "Air", "Aquarius": "Air",
+                "Cancer": "Water", "Scorpio": "Water", "Pisces": "Water"
+            }
+            MODE_MAP = {
+                "Aries": "Cardinal", "Cancer": "Cardinal", "Libra": "Cardinal", "Capricorn": "Cardinal",
+                "Taurus": "Fixed", "Leo": "Fixed", "Scorpio": "Fixed", "Aquarius": "Fixed",
+                "Gemini": "Mutable", "Virgo": "Mutable", "Sagittarius": "Mutable", "Pisces": "Mutable"
+            }
+            element_counts = {"Fire": 0, "Earth": 0, "Air": 0, "Water": 0}
+            mode_counts = {"Cardinal": 0, "Fixed": 0, "Mutable": 0}
+            for planet in planets_data.values():
+                sign = planet.get("sign")
+                element = ELEMENT_MAP.get(sign)
+                mode = MODE_MAP.get(sign)
+                if element:
+                    element_counts[element] += 1
+                if mode:
+                    mode_counts[mode] += 1
+
+            # --- Planetary Dignity Calculation ---
+            # Dignity tables (simplified for main planets)
+            RULERSHIP = {
+                "Aries": "Mars", "Taurus": "Venus", "Gemini": "Mercury", "Cancer": "Moon",
+                "Leo": "Sun", "Virgo": "Mercury", "Libra": "Venus", "Scorpio": "Mars",
+                "Sagittarius": "Jupiter", "Capricorn": "Saturn", "Aquarius": "Saturn", "Pisces": "Jupiter"
+            }
+            EXALTATION = {
+                "Aries": "Sun", "Taurus": "Moon", "Cancer": "Jupiter", "Virgo": "Mercury",
+                "Libra": "Saturn", "Capricorn": "Mars", "Pisces": "Venus"
+            }
+            DETRIMENT = {
+                "Aries": "Venus", "Taurus": "Mars", "Gemini": "Jupiter", "Cancer": "Saturn",
+                "Leo": "Saturn", "Virgo": "Neptune", "Libra": "Mars", "Scorpio": "Venus",
+                "Sagittarius": "Mercury", "Capricorn": "Moon", "Aquarius": "Sun", "Pisces": "Mercury"
+            }
+            FALL = {
+                "Aries": "Saturn", "Taurus": "Uranus", "Gemini": "South Node", "Cancer": "Mars",
+                "Leo": "Pluto", "Virgo": "Venus", "Libra": "Sun", "Scorpio": "Moon",
+                "Sagittarius": "North Node", "Capricorn": "Jupiter", "Aquarius": "Neptune", "Pisces": "Mercury"
+            }
+            for planet in planets_data.values():
+                sign = planet.get("sign")
+                name = planet.get("name")
+                dignity = "Peregrine"
+                if name and sign:
+                    if RULERSHIP.get(sign) == name:
+                        dignity = "Rulership"
+                    elif EXALTATION.get(sign) == name:
+                        dignity = "Exaltation"
+                    elif DETRIMENT.get(sign) == name:
+                        dignity = "Detriment"
+                    elif FALL.get(sign) == name:
+                        dignity = "Fall"
+                planet["dignity"] = dignity
+
             result = {
                 "info": {
                     "name": self.name,
@@ -409,7 +468,9 @@ class NatalChartCalculator:
                 "planets": planets_data,
                 "houses": houses_data, # Now populated correctly and matching HouseInfo
                 "aspects": aspects_data, # Populated with calculated aspects now
-                "calculation_error": None # Success (unless specific aspect error occurred)
+                "calculation_error": None, # Success (unless specific aspect error occurred)
+                "element_counts": element_counts,
+                "mode_counts": mode_counts,
             }
             logger.info(f"Successfully calculated chart details for {self.name}. Aspects found: {len(aspects_data)}")
             return result
@@ -615,9 +676,41 @@ def calculate_synastry(
     chart1_data: Dict[str, Any],
     chart2_data: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Placeholder for Synastry chart calculation."""
-    logger.warning("Synastry calculation is not yet implemented.")
-    return {"error": "Synastry calculation not implemented."}
+    aspects = []
+    planets1 = chart1_data.get("planets", {})
+    planets2 = chart2_data.get("planets", {})
+    # Defensive: ensure dict
+    if not isinstance(planets1, dict) or not isinstance(planets2, dict):
+        return {
+            "aspects": [],
+            "error": "One or both charts have invalid or missing planetary data (likely due to missing coordinates or calculation failure)."
+        }
+    ASPECT_DEGREES_ORBS = {
+        "Conjunction": (0, 8.0), "Sextile": (60, 5.0), "Square": (90, 7.0),
+        "Trine": (120, 7.0), "Opposition": (180, 8.0), "Quincunx": (150, 3.0),
+        "SemiSextile": (30, 2.0), "SemiSquare": (45, 2.0), "Sesquiquadrate": (135, 2.0)
+    }
+    for p1_name, p1 in planets1.items():
+        lon1 = p1.get("longitude") or p1.get("absolute_position") or p1.get("position")
+        if lon1 is None:
+            continue
+        for p2_name, p2 in planets2.items():
+            lon2 = p2.get("longitude") or p2.get("absolute_position") or p2.get("position")
+            if lon2 is None:
+                continue
+            angle_diff = abs(lon1 - lon2)
+            if angle_diff > 180:
+                angle_diff = 360 - angle_diff
+            for aspect_name, (degrees, orb_limit) in ASPECT_DEGREES_ORBS.items():
+                orb = abs(angle_diff - degrees)
+                if orb <= orb_limit:
+                    aspects.append({
+                        "planet1": p1_name,
+                        "planet2": p2_name,
+                        "aspect_name": aspect_name,
+                        "orb": round(orb, 2)
+                    })
+    return {"aspects": sorted(aspects, key=lambda x: x['orb'])}
 
 
 # Placeholder for Composite chart calculation
@@ -625,9 +718,29 @@ def calculate_composite_chart(
     chart1_data: Dict[str, Any],
     chart2_data: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Placeholder for Composite chart calculation."""
-    logger.warning("Composite chart calculation is not yet implemented.")
-    return {"error": "Composite chart calculation not implemented."}
+    """Calculate composite chart: midpoint for each planet present in both charts."""
+    composite_planets = {}
+    planets1 = chart1_data.get("planets", {})
+    planets2 = chart2_data.get("planets", {})
+    # Defensive: ensure dict
+    if not isinstance(planets1, dict) or not isinstance(planets2, dict):
+        return {
+            "composite_planets": {},
+            "error": "One or both charts have invalid or missing planetary data (likely due to missing coordinates or calculation failure)."
+        }
+    for planet in set(planets1.keys()) & set(planets2.keys()):
+        lon1 = planets1[planet].get("longitude") or planets1[planet].get("absolute_position") or planets1[planet].get("position")
+        lon2 = planets2[planet].get("longitude") or planets2[planet].get("absolute_position") or planets2[planet].get("position")
+        if lon1 is None or lon2 is None:
+            continue
+        # Calculate midpoint, handling wrap-around at 360
+        diff = abs(lon1 - lon2)
+        if diff > 180:
+            midpoint = ( (lon1 + lon2 + 360) / 2 ) % 360
+        else:
+            midpoint = (lon1 + lon2) / 2
+        composite_planets[planet] = {"midpoint": midpoint, "from_chart1": lon1, "from_chart2": lon2}
+    return {"composite_planets": composite_planets}
 
 
 # Example usage (for testing purposes, remove or comment out later)
