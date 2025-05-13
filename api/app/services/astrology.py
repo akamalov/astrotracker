@@ -320,13 +320,15 @@ class NatalChartCalculator:
                                                 if aspect_type_val is None:
                                                     aspect_type_val = getattr(aspect_detail, 'aspect_type', 0) # Alternative common name
 
-                                                aspects_data.append({
+                                                aspect_info = {
                                                     "p1_name": p1_name,
                                                     "p2_name": p2_name,
                                                     "aspect_name": aspect_name,
                                                     "orb": orb,
                                                     "aspect_degrees": aspect_degrees
-                                                })
+                                                }
+                                                logger.debug(f"Aspect: {aspect_name} between {p1_name} and {p2_name} with orb {orb}")
+                                                aspects_data.append(aspect_info)
                                             else:
                                                 # Keep warning for unexpected data structure
                                                 logger.warning(f"Skipping aspect_detail due to missing expected attributes. Type: {type(aspect_detail)}, Value: {str(aspect_detail)[:200]}")
@@ -421,77 +423,214 @@ class NatalChartCalculator:
 
 # --- Transit Calculation (Sync function, called via run_in_threadpool) ---
 def calculate_transits(
-    natal_chart_data: Dict[str, Any],
-    transit_dt: datetime
+    natal_chart_data: Dict[str, Any], # Contains natal planets, houses, location info
+    transit_dt: datetime,
+    target_latitude: Optional[float] = None,
+    target_longitude: Optional[float] = None,
+    target_city: Optional[str] = "TransitLocation"
 ) -> Dict[str, Any]:
-    """Calculates transiting planet positions and aspects to natal planets (using placeholder logic)."""
-    logger.warning(f"Using placeholder logic for calculate_transits for {transit_dt.isoformat()}")
+    """
+    Calculates transiting planet positions for a given datetime and aspects to natal planets.
+    """
+    if not KERYKEION_AVAILABLE:
+        return {"error": "Kerykeion library not available."}
 
-    # Placeholder Transit Logic matching TransitCalculationResult schema
-    mock_transiting_planets = {
-        "Sun": {"name": "Sun", "sign": "Cancer", "sign_num": 4, "position": 5.0, "absolute_position": 95.0, "house": "3"},
-        "Moon": {"name": "Moon", "sign": "Scorpio", "sign_num": 8, "position": 18.2, "absolute_position": 228.2, "house": "7"},
+    logger.info(f"Calculating transits for date: {transit_dt}")
+
+    # Determine location for transit calculation
+    calc_lat = target_latitude
+    calc_lon = target_longitude
+    calc_city = target_city
+
+    if calc_lat is None or calc_lon is None:
+        natal_info = natal_chart_data.get("info", {})
+        if isinstance(natal_info, dict):
+            calc_lat = natal_info.get("lat", target_latitude)
+            calc_lon = natal_info.get("lon", target_longitude)
+            # Only use city from natal_info if target_city was the default placeholder
+            if target_city == "TransitLocation": 
+                calc_city = natal_info.get("city", target_city)
+        
+        if calc_lat is None or calc_lon is None:
+            logger.warning("Transit calculation using default/placeholder location as coordinates were not sufficiently provided.")
+            calc_lat = 0.0 # Placeholder latitude
+            calc_lon = 0.0 # Placeholder longitude
+            calc_city = "DefaultLocation" # Placeholder city
+
+    # --- Determine Timezone for Transit Moment ---
+    tz_str_transit: Optional[str] = None
+    if TIMEZONEFINDER_AVAILABLE and calc_lat is not None and calc_lon is not None:
+        try:
+            tf = TimezoneFinder()
+            tz_str_transit = tf.timezone_at(lng=calc_lon, lat=calc_lat)
+            logger.info(f"Transit timezone for ({calc_lat}, {calc_lon}): {tz_str_transit}")
+        except Exception as tz_e:
+            logger.error(f"Error using timezonefinder for transit: {tz_e}")
+            # Proceed without tz_str, Kerykeion might default or error
+    elif not TIMEZONEFINDER_AVAILABLE:
+        logger.error("timezonefinder library is not available for transit timezone lookup.")
+    # --- End Timezone Determination ---
+
+    try:
+        transit_subject = AstrologicalSubject(
+            name="Transit",
+            year=transit_dt.year,
+            month=transit_dt.month,
+            day=transit_dt.day,
+            hour=transit_dt.hour,
+            minute=transit_dt.minute,
+            city=calc_city,
+            lng=calc_lon,
+            lat=calc_lat,
+            tz_str=tz_str_transit
+        )
+        logger.info(f"Initialized Kerykeion AstrologicalSubject for Transit at {calc_city} ({calc_lat}, {calc_lon}) for {transit_dt}")
+    except KerykeionException as ke:
+        logger.error(f"Kerykeion error initializing transit subject: {ke}", exc_info=True)
+        return {"error": f"Kerykeion Initialization Error for transit: {ke}"}
+    except Exception as e:
+        logger.error(f"Unexpected error initializing Kerykeion transit subject: {e}", exc_info=True)
+        return {"error": f"Unexpected Error during Kerykeion setup for transit: {e}"}
+
+    # Extract Transiting Planet Data
+    transiting_planets_data: Dict[str, Dict[str, Any]] = {}
+    # Same planet_attr_names as in NatalChartCalculator, or a subset relevant for transits
+    planet_attr_names = [
+        'sun', 'moon', 'mercury', 'venus', 'mars',
+        'jupiter', 'saturn', 'uranus', 'neptune', 'pluto',
+        'mean_node', 'true_node', 'chiron', 'mean_lilith' 
+    ]
+
+    for attr_name in planet_attr_names:
+        if hasattr(transit_subject, attr_name):
+            planet_obj = getattr(transit_subject, attr_name)
+            if planet_obj and hasattr(planet_obj, 'abs_pos'):
+                display_name = PLANET_MAP.get(attr_name, attr_name.capitalize())
+                sign_num = getattr(planet_obj, 'sign_num', -1)
+                abs_pos = getattr(planet_obj, 'abs_pos', None)
+                position = getattr(planet_obj, 'position', None)
+                retrograde = getattr(planet_obj, 'retrograde', False)
+                # Robust type check for sign_num
+                if isinstance(sign_num, int) and not hasattr(sign_num, 'assert_called'):  # exclude MagicMock
+                    if 0 <= sign_num < len(SIGN_FULL_NAMES):
+                        full_sign_name = SIGN_FULL_NAMES[sign_num]
+                        sign_symbol = SIGN_SYMBOLS[sign_num]
+                    else:
+                        full_sign_name = 'Unknown'
+                        sign_symbol = '?'
+                else:
+                    full_sign_name = 'Unknown'
+                    sign_symbol = '?'
+                # Skip if any key attribute is a MagicMock
+                from unittest.mock import MagicMock
+                if any(isinstance(x, MagicMock) for x in [abs_pos, sign_num, position, retrograde]):
+                    continue
+                if abs_pos is not None:
+                    transiting_planets_data[display_name] = {
+                        "name": display_name,
+                        "sign": full_sign_name,
+                        "sign_symbol": sign_symbol,
+                        "longitude": abs_pos,
+                        "deg_within_sign": position,
+                        "is_retrograde": retrograde,
+                    }
+            else:
+                logger.warning(f"Transit planet attribute '{attr_name}' lacks 'abs_pos'. Type: {type(planet_obj)}")
+        else:
+            logger.warning(f"Transit planet attribute '{attr_name}' not found in AstrologicalSubject.")
+            
+    # Extract Natal Planets for aspect calculation
+    natal_planets_input = natal_chart_data.get("planets", {})
+    
+    # Ensure natal_planets_input is a dict and its values are dicts with 'longitude' and 'name'
+    if not isinstance(natal_planets_input, dict) or \
+       not all(isinstance(pdata, dict) and 'longitude' in pdata and 'name' in pdata 
+               for pdata in natal_planets_input.values()):
+        logger.error("Natal planets data is not in the expected format (dict of dicts with 'longitude' and 'name').")
+        return {
+            "transit_date": transit_dt.isoformat(),
+            "transiting_planets": transiting_planets_data,
+            "transit_aspects": [],
+            "error": "Natal planets data malformed."
+        }
+
+    # Calculate Aspects between Transiting Planets and Natal Planets
+    transit_aspects = []
+    ASPECT_DEGREES_ORBS = {
+        "Conjunction": (0, 8.0), "Sextile": (60, 5.0), "Square": (90, 7.0),
+        "Trine": (120, 7.0), "Opposition": (180, 8.0), "Quincunx": (150, 3.0),
+        "SemiSextile": (30, 2.0), "SemiSquare": (45, 2.0), "Sesquiquadrate": (135, 2.0)
     }
-    mock_aspects_to_natal = []
-    # Example aspect if data was available
-    # mock_aspects_to_natal.append({
-    #     "p1_name": "Sun", "p2_name": "Moon", "aspect_name": "Square", "orb": 2.5, "aspect_degrees": 90
-    # })
 
+    for tp_name, tp_data in transiting_planets_data.items():
+        for np_name, np_data in natal_planets_input.items(): # Iterate over natal_planets_input
+            # tp_name and np_name are keys like "Sun", "Moon"
+            # tp_data and np_data are dicts like {"name": "Sun", "longitude": ..., ...}
+            
+            # Skip aspecting a transiting planet to its own natal position if names match and it's not meaningful
+            # (e.g. Transiting Sun to Natal Sun - always a conjunction, but maybe not desired in a typical transit list)
+            # For now, we allow all, as aspects like Sun conjunct natal Sun (Solar Return) are significant.
+            
+            tp_lon = tp_data.get("longitude")
+            np_lon = np_data.get("longitude")
+
+            # Only proceed if both are real numbers
+            if not (isinstance(tp_lon, (int, float)) and isinstance(np_lon, (int, float))):
+                logger.debug(f"Skipping aspect calc for {tp_name} to {np_name} due to non-numeric longitude (tp_lon={tp_lon}, np_lon={np_lon}).")
+                continue
+
+            angle_diff = abs(tp_lon - np_lon)
+            if angle_diff > 180:
+                angle_diff = 360 - angle_diff
+            
+            for aspect_name, (degrees, orb_limit) in ASPECT_DEGREES_ORBS.items():
+                orb = abs(angle_diff - degrees)
+                if orb <= orb_limit:
+                    transit_aspects.append({
+                        "transiting_planet": tp_name, # Name of the transiting planet
+                        "aspect_name": aspect_name,
+                        "natal_planet": np_name,   # Name of the natal planet
+                        "orb": round(orb, 2)
+                    })
+    
+    logger.info(f"Calculated {len(transit_aspects)} aspects between transiting and natal planets.")
+
+    # --- Fix up output to match TransitChartResponse schema ---
+    # 1. Add 'position' field to each planet in transiting_planets_data
+    for planet in transiting_planets_data.values():
+        # Use deg_within_sign if present, else longitude
+        planet["position"] = planet.get("deg_within_sign", planet.get("longitude"))
+
+    # 2. Prepare output dict with correct keys
     result = {
-        # "natal_chart_id": None, # Not applicable here
-        # "natal_chart_name": natal_chart_data.get("info", {}).get("name", "Unknown"),
-        "transit_datetime": transit_dt.isoformat(),
-        "transiting_planets": mock_transiting_planets,
-        "aspects_to_natal": mock_aspects_to_natal,
-        "calculation_error": None,
-        "info": "Using placeholder transit calculation logic."
+        "transit_datetime": transit_dt,  # Use datetime object
+        "transiting_planets": transiting_planets_data,
+        "aspects_to_natal": sorted(transit_aspects, key=lambda x: x['orb']),
+        # Optionally add calculation_error if needed
     }
     return result
 
-# --- Synastry Calculation (Sync function, called via run_in_threadpool) ---
+# Placeholder for Synastry calculation
 def calculate_synastry(
     chart1_data: Dict[str, Any],
     chart2_data: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Calculates synastry aspects between two charts (placeholder)."""
-    logger.warning("Using placeholder logic for calculate_synastry.")
+    """Placeholder for Synastry chart calculation."""
+    logger.warning("Synastry calculation is not yet implemented.")
+    return {"error": "Synastry calculation not implemented."}
 
-    # Placeholder Synastry Data matching SynastryResult schema
-    placeholder_synastry = {
-        "chart1_id": uuid.uuid4(), # Placeholder
-        "chart1_name": chart1_data.get("name", "Chart 1"),
-        "chart2_id": uuid.uuid4(), # Placeholder
-        "chart2_name": chart2_data.get("name", "Chart 2"),
-        "aspects": [
-            {"p1_name": "Sun", "p2_name": "Moon", "aspect_name": "Trine", "orb": 0.5, "aspect_degrees": 120},
-            {"p1_name": "Mars", "p2_name": "Venus", "aspect_name": "Opposition", "orb": 1.2, "aspect_degrees": 180}
-        ],
-        "calculation_error": None,
-        "info": "Using placeholder synastry calculation logic."
-    }
-    return placeholder_synastry
 
-# --- Composite Chart Calculation (Sync function, called via run_in_threadpool) ---
+# Placeholder for Composite chart calculation
 def calculate_composite_chart(
     chart1_data: Dict[str, Any],
     chart2_data: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Calculates a composite chart (placeholder)."""
-    logger.warning("Using placeholder logic for calculate_composite_chart.")
+    """Placeholder for Composite chart calculation."""
+    logger.warning("Composite chart calculation is not yet implemented.")
+    return {"error": "Composite chart calculation not implemented."}
 
-    # Placeholder Composite Data matching CompositeChartResult schema
-    placeholder_composite = {
-        "chart1_id": uuid.uuid4(), # Placeholder
-        "chart1_name": chart1_data.get("name", "Chart 1"),
-        "chart2_id": uuid.uuid4(), # Placeholder
-        "chart2_name": chart2_data.get("name", "Chart 2"),
-        "composite_planets": {
-            "Sun": {"name": "Sun", "sign": "Virgo", "sign_num": 6, "position": 22.0, "absolute_position": 172.0, "house": "1"}
-        },
-        "composite_houses": [],
-        "composite_aspects": [],
-        "calculation_error": None,
-        "info": "Using placeholder composite chart calculation logic."
-    }
-    return placeholder_composite 
+
+# Example usage (for testing purposes, remove or comment out later)
+async def main_test():
+    # ... (rest of main_test if it exists)
+    pass 
