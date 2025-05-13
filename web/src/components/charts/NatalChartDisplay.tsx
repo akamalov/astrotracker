@@ -4,6 +4,7 @@ import type { ChartData, PlanetPosition, Aspect, HouseCusp } from '../../types/a
 import { toPng } from 'html-to-image';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
+import TarotWidget from './TarotWidget';
 
 interface NatalChartDisplayProps {
   chartData: ChartData;
@@ -29,6 +30,14 @@ function degreesToSvgCoords(deg: number, radius: number, center: number) {
 // Helper to normalize planet names for comparison
 function normalizeName(name: string) {
   return name.replace(/ /g, '_').toLowerCase();
+}
+
+// Helper to normalize sun sign for TarotWidget
+function normalizeSunSign(sign: string) {
+  if (!sign) return '';
+  // Remove whitespace, lowercase, then capitalize first letter only
+  const s = sign.trim().toLowerCase();
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps) {
@@ -71,6 +80,11 @@ export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps)
     }
   };
 
+  // Get Sun sign from astrological_data.sun.sign or fallback to planets.Sun.sign
+  const sunSign = chartData.astrological_data?.sun?.sign || chartData.astrological_data?.planets?.Sun?.sign || '';
+  const normalizedSunSign = normalizeSunSign(sunSign);
+  console.log('Raw Sun sign:', sunSign, 'Normalized:', normalizedSunSign);
+
   return (
     <div className="p-4 sm:p-6 border border-gray-700 rounded-lg shadow-lg bg-gray-900 text-gray-200">
       <h2 className="text-2xl sm:text-3xl font-bold text-gray-100 mb-4 sm:mb-6 text-center">{chartData.name || 'Unnamed Chart'}</h2>
@@ -108,7 +122,7 @@ export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps)
       )}
 
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Left Column: Chart Details, Elements, Modes */}
+        {/* Left Column: Chart Details, Elements, Modes, Tarot */}
         <div className="flex flex-col gap-4 min-w-[260px] max-w-[340px] flex-1">
           {/* Chart Details Card */}
           <div className="bg-gray-900 rounded-md p-4 mb-0">
@@ -136,65 +150,75 @@ export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps)
               </span>
             </div>
           </div>
-          {/* Elements Card */}
-          <div className="bg-gray-900 rounded-md p-4">
-            <h3 className="text-lg font-bold mb-2 text-blue-300 flex items-center gap-2">Elements
-              <span className="text-xs text-gray-400"><i className="fa fa-info-circle" /></span>
-            </h3>
-            {/* Bar Chart for Elements */}
-            <div className="w-full max-w-xs mx-auto">
-              {Object.entries(chartData.astrological_data.element_counts).map(([element, count]) => {
-                const colors: Record<string, string> = {
-                  Fire: '#f87171', // red-400
-                  Earth: '#a3e635', // lime-400
-                  Air: '#38bdf8', // sky-400
-                  Water: '#818cf8', // indigo-400
-                };
-                const max = Math.max(...Object.values(chartData.astrological_data.element_counts));
-                const width = max > 0 ? (100 * (count as number) / max) : 0;
-                return (
-                  <div key={element} className="flex items-center mb-1">
-                    <span className="w-14 text-xs text-gray-300">{element}</span>
-                    <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
-                      <div
-                        className="h-4 rounded"
-                        style={{ width: `${width}%`, backgroundColor: colors[element] || '#888' }}
-                      ></div>
-                      <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
+          {/* Indented group: Elements, Modes, Tarot */}
+          <div className="flex flex-col gap-4 ml-8">
+            {/* Elements Card */}
+            <div className="bg-gray-900 rounded-md p-4">
+              <h3 className="text-lg font-bold mb-2 text-blue-300 flex items-center gap-2">Elements
+                <span className="text-xs text-gray-400"><i className="fa fa-info-circle" /></span>
+              </h3>
+              {/* Bar Chart for Elements */}
+              <div className="w-full max-w-xs mx-auto">
+                {Object.entries(chartData.astrological_data.element_counts).map(([element, count]) => {
+                  const colors: Record<string, string> = {
+                    Fire: '#f87171', // red-400
+                    Earth: '#a3e635', // lime-400
+                    Air: '#38bdf8', // sky-400
+                    Water: '#818cf8', // indigo-400
+                  };
+                  const max = Math.max(...Object.values(chartData.astrological_data.element_counts));
+                  const width = max > 0 ? (100 * (count as number) / max) : 0;
+                  return (
+                    <div key={element} className="flex items-center mb-1">
+                      <span className="w-14 text-xs text-gray-300">{element}</span>
+                      <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
+                        <div
+                          className="h-4 rounded"
+                          style={{ width: `${width}%`, backgroundColor: colors[element] || '#888' }}
+                        ></div>
+                        <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          {/* Modes Card */}
-          <div className="bg-gray-900 rounded-md p-4">
-            <h3 className="text-lg font-bold mb-2 text-green-300 flex items-center gap-2">Modes
-              <span className="text-xs text-gray-400"><i className="fa fa-info-circle" /></span>
-            </h3>
-            {/* Bar Chart for Modes */}
-            <div className="w-full max-w-xs mx-auto">
-              {Object.entries(chartData.astrological_data.mode_counts).map(([mode, count]) => {
-                const colors: Record<string, string> = {
-                  Cardinal: '#fbbf24', // amber-400
-                  Fixed: '#f472b6', // pink-400
-                  Mutable: '#34d399', // emerald-400
-                };
-                const max = Math.max(...Object.values(chartData.astrological_data.mode_counts));
-                const width = max > 0 ? (100 * (count as number) / max) : 0;
-                return (
-                  <div key={mode} className="flex items-center mb-1">
-                    <span className="w-14 text-xs text-gray-300">{mode}</span>
-                    <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
-                      <div
-                        className="h-4 rounded"
-                        style={{ width: `${width}%`, backgroundColor: colors[mode] || '#888' }}
-                      ></div>
-                      <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
+            {/* Modes Card */}
+            <div className="bg-gray-900 rounded-md p-4">
+              <h3 className="text-lg font-bold mb-2 text-green-300 flex items-center gap-2">Modes
+                <span className="text-xs text-gray-400"><i className="fa fa-info-circle" /></span>
+              </h3>
+              {/* Bar Chart for Modes */}
+              <div className="w-full max-w-xs mx-auto">
+                {Object.entries(chartData.astrological_data.mode_counts).map(([mode, count]) => {
+                  const colors: Record<string, string> = {
+                    Cardinal: '#fbbf24', // amber-400
+                    Fixed: '#f472b6', // pink-400
+                    Mutable: '#34d399', // emerald-400
+                  };
+                  const max = Math.max(...Object.values(chartData.astrological_data.mode_counts));
+                  const width = max > 0 ? (100 * (count as number) / max) : 0;
+                  return (
+                    <div key={mode} className="flex items-center mb-1">
+                      <span className="w-14 text-xs text-gray-300">{mode}</span>
+                      <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
+                        <div
+                          className="h-4 rounded"
+                          style={{ width: `${width}%`, backgroundColor: colors[mode] || '#888' }}
+                        ></div>
+                        <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            </div>
+            {/* Tarot Insight Widget */}
+            <div className="mt-0">
+              <div className="text-lg font-bold text-purple-300 mb-2 ml-2">Tarot Insight</div>
+              <div className="bg-gray-900 rounded-md p-4">
+                <TarotWidget sunSign={normalizedSunSign} />
+              </div>
             </div>
           </div>
         </div>
