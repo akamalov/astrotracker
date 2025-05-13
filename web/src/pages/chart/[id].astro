@@ -70,7 +70,7 @@ if (id) {
     
     {chart && !error && (
       // Render the NatalChartDisplay component instead of raw JSON
-      <NatalChartDisplay client:load chartData={chart} /> 
+      <NatalChartDisplay client:only="react" chartData={chart} /> 
     )}
 
     {!chart && !error && (
