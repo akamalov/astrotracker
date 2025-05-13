@@ -215,10 +215,7 @@ export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps)
             </div>
             {/* Tarot Insight Widget */}
             <div className="mt-0">
-              <div className="text-lg font-bold text-purple-300 mb-2 ml-2">Tarot Insight</div>
-              <div className="bg-gray-900 rounded-md p-4">
-                <TarotWidget sunSign={normalizedSunSign} />
-              </div>
+              <TarotWidget sunSign={normalizedSunSign} birthDate={chartData.birth_datetime ? chartData.birth_datetime.slice(0, 10) : ''} />
             </div>
           </div>
         </div>
