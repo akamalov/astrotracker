@@ -6,6 +6,8 @@ import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import TarotWidget from './TarotWidget';
 import type { TransitData } from "./ChartWithTransits";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface NatalChartDisplayProps {
   chartData: ChartData;
@@ -45,6 +47,7 @@ function normalizeSunSign(sign: string) {
 export default function NatalChartDisplay({ chartData, transitData }: NatalChartDisplayProps) {
   const [selectedPlanet, setSelectedPlanet] = useState<string | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
+  const detailsRef = useRef<HTMLDivElement>(null);
   const { planets, aspects, houses } = chartData.astrological_data || {};
   console.log("Planet names in chart:", Object.values(planets || {}).map((p: any) => p.name));
   const hasPlanetData = planets && typeof planets === 'object' && !Array.isArray(planets);
@@ -80,6 +83,46 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
       link.download = `${chartData.name || 'natal-chart'}.png`;
       link.href = dataUrl;
       link.click();
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      if (!chartRef.current || !detailsRef.current) {
+        console.log("Missing refs:", chartRef.current, detailsRef.current);
+        return;
+      }
+      // Save original backgrounds
+      const chartBg = chartRef.current.style.backgroundColor;
+      const detailsBg = detailsRef.current.style.backgroundColor;
+      // Force supported color (e.g., dark blue)
+      chartRef.current.style.backgroundColor = '#181d28';
+      detailsRef.current.style.backgroundColor = '#181d28';
+
+      // Wait a tick to ensure style is applied
+      await new Promise(res => setTimeout(res, 10));
+
+      // Capture images
+      const chartCanvas = await html2canvas(chartRef.current, { backgroundColor: null, scale: 2 });
+      const chartImgData = chartCanvas.toDataURL('image/png');
+      const detailsCanvas = await html2canvas(detailsRef.current, { backgroundColor: null, scale: 2 });
+      const detailsImgData = detailsCanvas.toDataURL('image/png');
+
+      // Restore original backgrounds
+      chartRef.current.style.backgroundColor = chartBg;
+      detailsRef.current.style.backgroundColor = detailsBg;
+
+      // Create PDF
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      let y = 24;
+      pdf.addImage(detailsImgData, 'PNG', 32, y, 220, 340);
+      pdf.addImage(chartImgData, 'PNG', 270, y, 300, 300);
+      pdf.setFontSize(18);
+      pdf.text(chartData.name || 'Natal Chart', pageWidth / 2, 20, { align: 'center' });
+      pdf.save(`${chartData.name || 'natal-chart'}.pdf`);
+    } catch (err) {
+      console.error('PDF export error:', err);
     }
   };
 
@@ -126,21 +169,21 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
 
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Column: Chart Details, Elements, Modes, Tarot */}
-        <div className="flex flex-col gap-4 min-w-[260px] max-w-[340px] flex-1">
+        <div className="flex flex-col gap-4 min-w-[260px] max-w-[340px] flex-1 rounded-lg p-2" ref={detailsRef} style={{ background: 'inherit' }}>
           {/* Chart Details Card */}
-          <div className="bg-gray-900 rounded-md p-4 mb-0">
-            <h3 className="text-xl font-bold mb-3 text-pink-300">Chart Details</h3>
+          <div className="rounded-md p-4 mb-0" style={{ background: 'inherit' }}>
+            <h3 className="text-xl font-bold mb-3 text-pink-400">Chart Details</h3>
             <div className="mb-1 flex">
-              <span className="font-bold text-white w-24">Name:</span>
-              <span className="text-white">{chartData.name || '—'}</span>
+              <span className="font-bold text-gray-900 w-24">Name:</span>
+              <span className="text-gray-900">{chartData.name || '—'}</span>
             </div>
             <div className="mb-1 flex">
-              <span className="font-bold text-white w-24">Birth Date:</span>
-              <span className="text-white">{chartData.birth_datetime ? new Date(chartData.birth_datetime).toLocaleString() : '—'}</span>
+              <span className="font-bold text-gray-900 w-24">Birth Date:</span>
+              <span className="text-gray-900">{chartData.birth_datetime ? new Date(chartData.birth_datetime).toLocaleString() : '—'}</span>
             </div>
             <div className="mb-1 flex">
-              <span className="font-bold text-white w-24">Location:</span>
-              <span className="text-white">
+              <span className="font-bold text-gray-900 w-24">Location:</span>
+              <span className="text-gray-900">
                 {((chartData.city || chartData.country) && (
                   <>
                     {chartData.city}{chartData.city && chartData.country ? ', ' : ''}{chartData.country}
@@ -156,30 +199,30 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
           {/* Indented group: Elements, Modes, Tarot */}
           <div className="flex flex-col gap-4 ml-8">
             {/* Elements Card */}
-            <div className="bg-gray-900 rounded-md p-4">
+            <div className="rounded-md p-4" style={{ background: 'inherit' }}>
               <h3 className="text-lg font-bold mb-2 text-blue-300 flex items-center gap-2">Elements
                 <span className="text-xs text-gray-400"><i className="fa fa-info-circle" /></span>
               </h3>
               {/* Bar Chart for Elements */}
               <div className="w-full max-w-xs mx-auto">
-                {Object.entries(chartData.astrological_data.element_counts).map(([element, count]) => {
+                {Object.entries(chartData.astrological_data?.element_counts ?? {}).map(([element, count]) => {
                   const colors: Record<string, string> = {
                     Fire: '#f87171', // red-400
                     Earth: '#a3e635', // lime-400
                     Air: '#38bdf8', // sky-400
                     Water: '#818cf8', // indigo-400
                   };
-                  const max = Math.max(...Object.values(chartData.astrological_data.element_counts));
+                  const max = Math.max(...Object.values(chartData.astrological_data?.element_counts ?? {}));
                   const width = max > 0 ? (100 * (count as number) / max) : 0;
                   return (
                     <div key={element} className="flex items-center mb-1">
-                      <span className="w-14 text-xs text-gray-300">{element}</span>
-                      <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
+                      <span className="w-14 text-xs" style={{ color: '#ecf4fa' }}>{element}</span>
+                      <div className="flex-1 h-4 rounded bg-gray-200 ml-2 relative">
                         <div
                           className="h-4 rounded"
                           style={{ width: `${width}%`, backgroundColor: colors[element] || '#888' }}
                         ></div>
-                        <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
+                        <span className="absolute right-2 top-0 text-xs text-gray-900">{count}</span>
                       </div>
                     </div>
                   );
@@ -187,29 +230,29 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
               </div>
             </div>
             {/* Modes Card */}
-            <div className="bg-gray-900 rounded-md p-4">
+            <div className="rounded-md p-4" style={{ background: 'inherit' }}>
               <h3 className="text-lg font-bold mb-2 text-green-300 flex items-center gap-2">Modes
                 <span className="text-xs text-gray-400"><i className="fa fa-info-circle" /></span>
               </h3>
               {/* Bar Chart for Modes */}
               <div className="w-full max-w-xs mx-auto">
-                {Object.entries(chartData.astrological_data.mode_counts).map(([mode, count]) => {
+                {Object.entries(chartData.astrological_data?.mode_counts ?? {}).map(([mode, count]) => {
                   const colors: Record<string, string> = {
                     Cardinal: '#fbbf24', // amber-400
                     Fixed: '#f472b6', // pink-400
                     Mutable: '#34d399', // emerald-400
                   };
-                  const max = Math.max(...Object.values(chartData.astrological_data.mode_counts));
+                  const max = Math.max(...Object.values(chartData.astrological_data?.mode_counts ?? {}));
                   const width = max > 0 ? (100 * (count as number) / max) : 0;
                   return (
                     <div key={mode} className="flex items-center mb-1">
-                      <span className="w-14 text-xs text-gray-300">{mode}</span>
-                      <div className="flex-1 h-4 rounded bg-gray-800 ml-2 relative">
+                      <span className="w-14 text-xs" style={{ color: '#ecf4fa' }}>{mode}</span>
+                      <div className="flex-1 h-4 rounded bg-gray-200 ml-2 relative">
                         <div
                           className="h-4 rounded"
                           style={{ width: `${width}%`, backgroundColor: colors[mode] || '#888' }}
                         ></div>
-                        <span className="absolute right-2 top-0 text-xs text-gray-200">{count}</span>
+                        <span className="absolute right-2 top-0 text-xs text-gray-900">{count}</span>
                       </div>
                     </div>
                   );
@@ -421,19 +464,30 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
                     const transiting = transitData.transiting_planets[aspect.transiting_planet];
                     const natal = planets?.[aspect.natal_planet];
                     if (!transiting || !natal) return null;
-                    // Use longitude if present, else fallback to position
-                    const transitingDegree = typeof transiting?.longitude === "number" ? transiting.longitude : transiting?.position;
-                    const natalDegree = typeof natal?.longitude === "number" ? natal.longitude : natal?.position;
+                    // Use longitude if present, else fallback to position (if present)
+                    const transitingDegree = typeof transiting?.longitude === "number"
+                      ? transiting.longitude
+                      : (typeof (transiting as any)?.position === "number" ? (transiting as any).position : undefined);
+                    const natalDegree = typeof natal?.longitude === "number"
+                      ? natal.longitude
+                      : (typeof (natal as any)?.position === "number" ? (natal as any).position : undefined);
                     if (typeof transitingDegree !== "number" || typeof natalDegree !== "number") return null;
                     const pos1 = degreesToSvgCoords(transitingDegree, transitRingRadius, center);
                     const pos2 = degreesToSvgCoords(natalDegree, planetRingRadius, center);
+                    const interpretation = aspect.interpretation || aspect.meaning;
                     return (
                       <Tippy
                         key={"aspect-transit-" + idx}
                         content={
-                          <div>
+                          <div style={{ maxWidth: 260 }}>
                             <strong>Transit {aspect.transiting_planet} {aspect.aspect_name} Natal {aspect.natal_planet}</strong><br />
                             Orb: {typeof aspect.orb === 'number' ? aspect.orb.toFixed(2) : '-'}
+                            {interpretation && (
+                              <>
+                                <hr style={{ margin: '6px 0', borderColor: '#38bdf8' }} />
+                                <span style={{ fontSize: 13, color: '#38bdf8' }}>{interpretation}</span>
+                              </>
+                            )}
                           </div>
                         }
                         placement="top"
@@ -453,63 +507,71 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
                   })}
               </svg>
             </div>
-
-            {/* Legend/Key */}
-            <div className="mt-4 flex flex-col sm:flex-row sm:justify-center gap-6">
-              {/* Planet Glyphs */}
-              <div>
-                <div className="font-semibold mb-1 text-gray-200">Planets</div>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(PLANET_GLYPHS).map(([name, glyph]) => (
-                    <span key={name} className="flex items-center gap-1 text-sm text-gray-100 border border-gray-700 rounded px-2 py-1 bg-gray-800">
-                      <span style={{ fontSize: 18 }}>{glyph}</span>
-                      <span>{name.replace(/_/g, ' ')}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-              {/* Aspect Lines */}
-              <div>
-                <div className="font-semibold mb-1 text-gray-200">Aspect Lines</div>
-                <div className="flex flex-col gap-1">
-                  <span className="flex items-center gap-2">
-                    <span style={{ width: 24, height: 0, borderTop: '2px solid #FFD600', display: 'inline-block' }}></span>
-                    <span>Aspect</span>
+            {/* Download Buttons */}
+            <div className="flex justify-center mb-4 gap-2">
+              <button
+                onClick={handleDownloadChart}
+                className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 focus:outline-none focus:ring"
+              >
+                Download Chart as PNG
+              </button>
+              <button
+                onClick={handleDownloadPDF}
+                className="px-4 py-2 bg-green-600 text-white rounded shadow hover:bg-green-700 focus:outline-none focus:ring"
+              >
+                Download as PDF
+              </button>
+            </div>
+          </div>
+          {/* Legend/Key */}
+          <div className="mt-4 flex flex-col sm:flex-row sm:justify-center gap-6">
+            {/* Planet Glyphs */}
+            <div>
+              <div className="font-semibold mb-1 text-gray-200">Planets</div>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(PLANET_GLYPHS).map(([name, glyph]) => (
+                  <span key={name} className="flex items-center gap-1 text-sm text-gray-100 border border-gray-700 rounded px-2 py-1 bg-gray-800">
+                    <span style={{ fontSize: 18 }}>{glyph}</span>
+                    <span>{name.replace(/_/g, ' ')}</span>
                   </span>
-                  <span className="flex items-center gap-2">
-                    <span style={{ width: 24, height: 0, borderTop: '2.5px solid #FF4081', display: 'inline-block' }}></span>
-                    <span>Highlighted Aspect</span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span style={{ width: 24, height: 0, borderTop: '2px solid #38bdf8', display: 'inline-block' }}></span>
-                    <span>Transit Aspect</span>
-                  </span>
-                </div>
+                ))}
               </div>
-              {/* Transiting Planets */}
-              <div>
-                <div className="font-semibold mb-1 text-gray-200">Transiting Planets</div>
-                <div className="flex items-center gap-2">
-                  <span style={{ fontSize: 18, color: '#38bdf8' }}>☉</span>
-                  <span className="text-blue-300">Transiting Glyph (outer ring, blue)</span>
-                </div>
+            </div>
+            {/* Aspect Lines */}
+            <div>
+              <div className="font-semibold mb-1 text-gray-200">Aspect Lines</div>
+              <div className="flex flex-col gap-1">
+                <span className="flex items-center gap-2">
+                  <span style={{ width: 24, height: 0, borderTop: '2px solid #FFD600', display: 'inline-block' }}></span>
+                  <span>Aspect</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span style={{ width: 24, height: 0, borderTop: '2.5px solid #FF4081', display: 'inline-block' }}></span>
+                  <span>Highlighted Aspect</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span style={{ width: 24, height: 0, borderTop: '2px solid #38bdf8', display: 'inline-block' }}></span>
+                  <span>Transit Aspect</span>
+                </span>
               </div>
-              {/* House Cusps */}
-              <div>
-                <div className="font-semibold mb-1 text-gray-200">House Cusps</div>
-                <div className="flex items-center gap-2">
-                  <span style={{ width: 24, height: 0, borderTop: '2px solid pink', display: 'inline-block' }}></span>
-                  <span>House Cusp</span>
-                </div>
+            </div>
+            {/* Transiting Planets */}
+            <div>
+              <div className="font-semibold mb-1 text-gray-200">Transiting Planets</div>
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: 18, color: '#38bdf8' }}>☉</span>
+                <span className="text-blue-300">Transiting Glyph (outer ring, blue)</span>
+              </div>
+            </div>
+            {/* House Cusps */}
+            <div>
+              <div className="font-semibold mb-1 text-gray-200">House Cusps</div>
+              <div className="flex items-center gap-2">
+                <span style={{ width: 24, height: 0, borderTop: '2px solid pink', display: 'inline-block' }}></span>
+                <span>House Cusp</span>
               </div>
             </div>
           </div>
-          <button
-            className="mt-4 px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700"
-            onClick={handleDownloadChart}
-          >
-            Download Chart as PNG
-          </button>
         </div>
       </div>
 

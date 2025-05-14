@@ -423,6 +423,53 @@ async def calculate_composite_endpoint(
         calculation_error=composite_data.get("error")
     )
 
+@router.get("/{chart_id}/transits", response_model=TransitChartResponse)
+async def get_chart_transits_get_endpoint(
+    chart_id: UUID,
+    transit_datetime: str = Query(..., description="Transit datetime in ISO format, e.g. 2025-05-14T09:28:00"),
+    chart_crud: CRUDChart = Depends(get_crud_chart),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Get transits for a chart at a specific datetime (GET version for timeline/slider support).
+    """
+    chart = await chart_crud.get(id=chart_id)
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    lat = chart.latitude
+    lon = chart.longitude
+    city = chart.city
+    if lat is None or lon is None:
+        lat, lon = await get_coordinates_for_city(city, db)
+        if lat is None or lon is None:
+            raise HTTPException(status_code=404, detail="Coordinates not found for chart's city")
+
+    try:
+        transit_dt = datetime.fromisoformat(transit_datetime)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid transit_datetime: {e}")
+
+    calculator = NatalChartCalculator(
+        name=chart.name,
+        birth_dt=chart.birth_datetime,
+        city=chart.city,
+        latitude=lat,
+        longitude=lon
+    )
+    natal_chart_data = await calculator.calculate_chart()
+
+    transit_data = await run_in_threadpool(
+        calculate_transits,
+        natal_chart_data,
+        transit_dt,
+        lat,
+        lon,
+        city
+    )
+
+    return TransitChartResponse(**transit_data)
+
 # @router.put("/{chart_id}", response_model=ChartDisplay)
 # async def update_chart_endpoint(...):
 #     ...
