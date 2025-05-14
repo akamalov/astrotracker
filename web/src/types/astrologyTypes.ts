@@ -22,9 +22,25 @@ export interface HouseCusp {
   absolute_position: number;
 }
 
+export interface AstrologicalData {
+  planets: Record<string, PlanetPosition>;
+  aspects: Aspect[];
+  houses: HouseCusp[];
+  sun?: { sign: string; position: number };
+  ascendant?: { sign: string; position: number };
+  midheaven?: { sign: string; position: number };
+  element_counts?: Record<string, number>;
+  mode_counts?: Record<string, number>;
+  calculation_error?: string;
+  // ...add other fields as needed
+}
+
 export interface ChartData {
   name?: string;
-  planets?: Record<string, PlanetPosition>;
-  aspects?: Aspect[];
-  houses?: HouseCusp[];
+  birth_datetime?: string;
+  city?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  astrological_data?: AstrologicalData;
 }

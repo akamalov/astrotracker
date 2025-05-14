@@ -5,9 +5,11 @@ import { toPng } from 'html-to-image';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import TarotWidget from './TarotWidget';
+import type { TransitData } from "./ChartWithTransits";
 
 interface NatalChartDisplayProps {
   chartData: ChartData;
+  transitData?: TransitData;
 }
 
 // Helper functions for SVG math
@@ -40,7 +42,7 @@ function normalizeSunSign(sign: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps) {
+export default function NatalChartDisplay({ chartData, transitData }: NatalChartDisplayProps) {
   const [selectedPlanet, setSelectedPlanet] = useState<string | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const { planets, aspects, houses } = chartData.astrological_data || {};
@@ -58,6 +60,7 @@ export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps)
   const houseCuspLineRadius = zodiacInnerRadius;
   const houseLabelRadius = zodiacInnerRadius - 15;
   const planetRingRadius = houseLabelRadius - 30;
+  const transitRingRadius = planetRingRadius + 30;
 
   // Helper for SVG arc
   function describeArc(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
@@ -373,6 +376,81 @@ export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps)
                     );
                   })}
                 </g>
+
+                {/* Overlay: Render transiting planet glyphs (outer ring, blue) */}
+                {transitData &&
+                  Object.values(transitData.transiting_planets).map((planet: any, idx: number) => {
+                    // Use longitude if present, else fallback to position
+                    const degree = typeof planet?.longitude === "number" ? planet.longitude : planet?.position;
+                    if (typeof degree !== "number") return null;
+                    const pos = degreesToSvgCoords(degree, transitRingRadius, center);
+                    const glyph = PLANET_GLYPHS[planet.name] || "?";
+                    return (
+                      <Tippy
+                        key={"transit-" + planet.name}
+                        content={
+                          <div>
+                            <strong>Transiting {planet.name}</strong><br />
+                            {planet.sign} {degree.toFixed(2)}°
+                          </div>
+                        }
+                        placement="top"
+                        arrow={true}
+                      >
+                        <text
+                          x={pos.x}
+                          y={pos.y}
+                          fontSize="16"
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          fill="#38bdf8"
+                          stroke="#222"
+                          strokeWidth={0.5}
+                          opacity={0.85}
+                          style={{ fontWeight: "bold", cursor: "pointer" }}
+                        >
+                          {glyph}
+                        </text>
+                      </Tippy>
+                    );
+                  })}
+
+                {/* Overlay: Render aspect lines between transiting and natal planets (blue) */}
+                {transitData &&
+                  transitData.aspects_to_natal.map((aspect: any, idx: number) => {
+                    const transiting = transitData.transiting_planets[aspect.transiting_planet];
+                    const natal = planets?.[aspect.natal_planet];
+                    if (!transiting || !natal) return null;
+                    // Use longitude if present, else fallback to position
+                    const transitingDegree = typeof transiting?.longitude === "number" ? transiting.longitude : transiting?.position;
+                    const natalDegree = typeof natal?.longitude === "number" ? natal.longitude : natal?.position;
+                    if (typeof transitingDegree !== "number" || typeof natalDegree !== "number") return null;
+                    const pos1 = degreesToSvgCoords(transitingDegree, transitRingRadius, center);
+                    const pos2 = degreesToSvgCoords(natalDegree, planetRingRadius, center);
+                    return (
+                      <Tippy
+                        key={"aspect-transit-" + idx}
+                        content={
+                          <div>
+                            <strong>Transit {aspect.transiting_planet} {aspect.aspect_name} Natal {aspect.natal_planet}</strong><br />
+                            Orb: {typeof aspect.orb === 'number' ? aspect.orb.toFixed(2) : '-'}
+                          </div>
+                        }
+                        placement="top"
+                        arrow={true}
+                      >
+                        <line
+                          x1={pos1.x}
+                          y1={pos1.y}
+                          x2={pos2.x}
+                          y2={pos2.y}
+                          stroke="#38bdf8"
+                          strokeWidth={1.5}
+                          opacity={0.7}
+                        />
+                      </Tippy>
+                    );
+                  })}
               </svg>
             </div>
 
@@ -402,6 +480,18 @@ export default function NatalChartDisplay({ chartData }: NatalChartDisplayProps)
                     <span style={{ width: 24, height: 0, borderTop: '2.5px solid #FF4081', display: 'inline-block' }}></span>
                     <span>Highlighted Aspect</span>
                   </span>
+                  <span className="flex items-center gap-2">
+                    <span style={{ width: 24, height: 0, borderTop: '2px solid #38bdf8', display: 'inline-block' }}></span>
+                    <span>Transit Aspect</span>
+                  </span>
+                </div>
+              </div>
+              {/* Transiting Planets */}
+              <div>
+                <div className="font-semibold mb-1 text-gray-200">Transiting Planets</div>
+                <div className="flex items-center gap-2">
+                  <span style={{ fontSize: 18, color: '#38bdf8' }}>☉</span>
+                  <span className="text-blue-300">Transiting Glyph (outer ring, blue)</span>
                 </div>
               </div>
               {/* House Cusps */}

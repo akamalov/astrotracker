@@ -17,10 +17,19 @@ export default defineConfig({
       clientPort: 4321,
       // Optionally, explicitly set the host if needed, e.g., 'localhost' or '0.0.0.0'
       host: 'localhost',
-    }
+    },
+    // Add proxy for API requests
+    proxy: {
+      '/api': 'http://localhost:8000',
+    },
   },
 
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    server: {
+      proxy: {
+        '/api': 'http://localhost:8000',
+      },
+    },
   }
 });

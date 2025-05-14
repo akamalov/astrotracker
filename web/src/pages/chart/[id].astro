@@ -2,7 +2,7 @@
 // src/pages/chart/[id].astro
 import Layout from "../../layouts/Layout.astro";
 import apiClient from "../../lib/apiClient";
-import NatalChartDisplay from "../../components/charts/NatalChartDisplay.tsx";
+import { ChartWithTransits } from "../../components/charts/ChartWithTransits";
 export const prerender = false;
 
 // Define a type for the chart data, should match NatalChartDisplay and API
@@ -69,8 +69,7 @@ if (id) {
     )}
     
     {chart && !error && (
-      // Render the NatalChartDisplay component instead of raw JSON
-      <NatalChartDisplay client:only="react" chartData={chart} /> 
+      <ChartWithTransits chartId={id} chartData={chart} client:only="react" />
     )}
 
     {!chart && !error && (

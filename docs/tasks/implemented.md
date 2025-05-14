@@ -102,4 +102,10 @@
     *   Updated the default fallback color for aspect lines in the SVG chart wheel to 'yellow' for better visibility in `NatalChartDisplay.tsx`.
     *   Changed the color of house cusp lines in the SVG chart wheel to 'pink' in `NatalChartDisplay.tsx`.
     *   Addressed a recurring JSX parsing error (`Expected ")" but found "x"`) in `NatalChartDisplay.tsx` related to displaying numerical degree values with symbols. Implemented a robust fix using conditional rendering and type checking.
-    *   Relevant files: `astrotracker/web/src/components/charts/NatalChartDisplay.tsx`, `astrotracker/web/src/layouts/Layout.astro` 
+    *   Relevant files: `astrotracker/web/src/components/charts/NatalChartDisplay.tsx`, `astrotracker/web/src/layouts/Layout.astro`
+
+15. **TarotWidget Card Name Alignment & Overlap Fix:**
+    *   Refactored the TarotWidget layout so that Tarot card names (e.g., "Strength", "The Emperor") are perfectly aligned on the same horizontal line, regardless of extra labels (like "Leo").
+    *   Ensured card meanings are also aligned in a row below the names.
+    *   Added extra bottom margin to the Tarot section to guarantee no overlap with the Planets section below.
+    *   Relevant file: `astrotracker/web/src/components/charts/TarotWidget.tsx` 
