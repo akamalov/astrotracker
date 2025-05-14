@@ -174,16 +174,16 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
           <div className="rounded-md p-4 mb-0" style={{ background: 'inherit' }}>
             <h3 className="text-xl font-bold mb-3 text-pink-400">Chart Details</h3>
             <div className="mb-1 flex">
-              <span className="font-bold text-gray-900 w-24">Name:</span>
-              <span className="text-gray-900">{chartData.name || '—'}</span>
+              <span className="font-bold w-24" style={{ color: '#f2ebf5' }}>Name:</span>
+              <span style={{ color: '#f2ebf5' }}>{chartData.name || '—'}</span>
             </div>
             <div className="mb-1 flex">
-              <span className="font-bold text-gray-900 w-24">Birth Date:</span>
-              <span className="text-gray-900">{chartData.birth_datetime ? new Date(chartData.birth_datetime).toLocaleString() : '—'}</span>
+              <span className="font-bold w-24" style={{ color: '#f2ebf5' }}>Birth Date:</span>
+              <span style={{ color: '#f2ebf5' }}>{chartData.birth_datetime ? new Date(chartData.birth_datetime).toLocaleString() : '—'}</span>
             </div>
             <div className="mb-1 flex">
-              <span className="font-bold text-gray-900 w-24">Location:</span>
-              <span className="text-gray-900">
+              <span className="font-bold w-24" style={{ color: '#f2ebf5' }}>Location:</span>
+              <span style={{ color: '#f2ebf5' }}>
                 {((chartData.city || chartData.country) && (
                   <>
                     {chartData.city}{chartData.city && chartData.country ? ', ' : ''}{chartData.country}
