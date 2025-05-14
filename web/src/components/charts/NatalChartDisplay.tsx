@@ -6,8 +6,6 @@ import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import TarotWidget from './TarotWidget';
 import type { TransitData } from "./ChartWithTransits";
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 interface NatalChartDisplayProps {
   chartData: ChartData;
@@ -83,46 +81,6 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
       link.download = `${chartData.name || 'natal-chart'}.png`;
       link.href = dataUrl;
       link.click();
-    }
-  };
-
-  const handleDownloadPDF = async () => {
-    try {
-      if (!chartRef.current || !detailsRef.current) {
-        console.log("Missing refs:", chartRef.current, detailsRef.current);
-        return;
-      }
-      // Save original backgrounds
-      const chartBg = chartRef.current.style.backgroundColor;
-      const detailsBg = detailsRef.current.style.backgroundColor;
-      // Force supported color (e.g., dark blue)
-      chartRef.current.style.backgroundColor = '#181d28';
-      detailsRef.current.style.backgroundColor = '#181d28';
-
-      // Wait a tick to ensure style is applied
-      await new Promise(res => setTimeout(res, 10));
-
-      // Capture images
-      const chartCanvas = await html2canvas(chartRef.current, { backgroundColor: null, scale: 2 });
-      const chartImgData = chartCanvas.toDataURL('image/png');
-      const detailsCanvas = await html2canvas(detailsRef.current, { backgroundColor: null, scale: 2 });
-      const detailsImgData = detailsCanvas.toDataURL('image/png');
-
-      // Restore original backgrounds
-      chartRef.current.style.backgroundColor = chartBg;
-      detailsRef.current.style.backgroundColor = detailsBg;
-
-      // Create PDF
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      let y = 24;
-      pdf.addImage(detailsImgData, 'PNG', 32, y, 220, 340);
-      pdf.addImage(chartImgData, 'PNG', 270, y, 300, 300);
-      pdf.setFontSize(18);
-      pdf.text(chartData.name || 'Natal Chart', pageWidth / 2, 20, { align: 'center' });
-      pdf.save(`${chartData.name || 'natal-chart'}.pdf`);
-    } catch (err) {
-      console.error('PDF export error:', err);
     }
   };
 
@@ -514,12 +472,6 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
                 className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 focus:outline-none focus:ring"
               >
                 Download Chart as PNG
-              </button>
-              <button
-                onClick={handleDownloadPDF}
-                className="px-4 py-2 bg-green-600 text-white rounded shadow hover:bg-green-700 focus:outline-none focus:ring"
-              >
-                Download as PDF
               </button>
             </div>
           </div>
