@@ -8,7 +8,7 @@ import uuid
 # ADD SynastryCompositePersonInput to this import line
 from app.schemas.chart import (
     NatalChartData, CelestialBody, HouseCusp, Aspect,
-    SynastryAspect, SynastryResult, CompositePlanet,
+    SynastryAspect, SynastryResult,
     CompositeChartResult, SynastryCompositePersonInput 
 )
 
