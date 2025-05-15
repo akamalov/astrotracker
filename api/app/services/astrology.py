@@ -5,6 +5,9 @@ from datetime import datetime
 from typing import Any, Dict, Optional, List
 import uuid
 
+# Import AsyncSession for type hinting
+from sqlalchemy.ext.asyncio import AsyncSession
+
 # ADD SynastryCompositePersonInput to this import line
 from app.schemas.chart import (
     NatalChartData, CelestialBody, HouseCusp, Aspect,
