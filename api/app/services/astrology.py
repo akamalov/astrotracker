@@ -752,63 +752,35 @@ async def create_subject_from_input_data(person_input: SynastryCompositePersonIn
         return None
 
 def calculate_synastry(
-    chart1_data: Dict[str, Any],
-    chart2_data: Dict[str, Any]
+    subject1: Optional[_AstrologicalSubject],
+    subject2: Optional[_AstrologicalSubject]
 ) -> Dict[str, Any]:
     """
-    Calculates synastry aspects between two natal charts using Kerykeion.
-    Accepts chart data dictionaries (output of NatalChartCalculator.calculate_chart()).
+    Calculates synastry aspects between two AstrologicalSubject instances using Kerykeion.
     Returns a dictionary with aspects or an error.
     """
-    if not KERYKEION_AVAILABLE:
-        return {"aspects": [], "error": "Kerykeion library not available."}
-
-    subject1 = _create_subject_from_chart_data(chart1_data)
-    subject2 = _create_subject_from_chart_data(chart2_data)
+    if not KERYKEION_AVAILABLE or not _SynastryAspects:
+        return {"aspects": [], "error": "Kerykeion library or SynastryAspects not available."}
 
     if not subject1 or not subject2:
-        error_msg = "Could not create AstrologicalSubject for "
-        if not subject1 and not subject2: error_msg += "both charts."
-        elif not subject1: error_msg += "chart 1."
-        else: error_msg += "chart 2."
+        error_msg = "Invalid AstrologicalSubject provided for "
+        if not subject1 and not subject2: error_msg += "both persons."
+        elif not subject1: error_msg += "person 1."
+        else: error_msg += "person 2."
         return {"aspects": [], "error": error_msg}
 
     try:
         synastry_instance = SynastryAspects(subject1, subject2)
         
-        # Extract aspects - structure depends on Kerykeion's SynastryAspects object
-        # Assuming synastry_instance.aspects gives a list of aspect objects/dicts
-        # We need to map this to our SynastryAspect schema
-        raw_aspects = synastry_instance.aspects # This is a guess, adjust based on actual API
-
-        # Example transformation (adjust based on actual raw_aspects structure):
-        # This needs to be carefully mapped to the SynastryAspect Pydantic model.
-        # Let's assume kerykeion aspect format is something like:
-        # {'p1_name': 'Sun', 'p2_name': 'Moon', 'aspect': 'Conjunction', 'orb': 1.23, 'diff': 0.5}
-        # Or it could be objects: aspect.p1.name, aspect.p2.name, aspect.name, aspect.orb
-        
-        # For now, let's return the raw aspects and plan transformation later
-        # or a placeholder if the structure is unknown
-        
-        # The SynastryAspect model has:
-        #   planet1: str
-        #   planet2: str
-        #   aspect_name: str
-        #   orb: float
-        #   aspect_degrees: Optional[float] = None # if available
-
-        # Kerykeion's Synastry aspects usually look like:
-        # [('Sun', 'Moon', 'Conjunction', 0.5, 1.23)] # p1, p2, aspect_name, orb, diff (diff might be orb)
-        # Or it could be an object with attributes.
-        # The `Synastry.get_relevant_aspects(points_list1, points_list2, aspects_list, orb)` is more likely.
-        # For simplicity, we assume `synastry_instance.aspects` is a list of tuples/objects.
-
         processed_aspects = []
-        if hasattr(synastry_instance, 'aspects_list') and isinstance(synastry_instance.aspects_list, list):
-            # This is based on inspecting kerykeion.Synastry in v4, 
-            # it seems to be a list of tuples: (p1_name, p2_name, aspect_name, orb, diff_degrees)
-            for aspect_tuple in synastry_instance.aspects_list:
-                if len(aspect_tuple) >= 4: # Ensure enough elements
+        aspect_list_to_process = getattr(synastry_instance, 'aspects_list', [])
+        if not isinstance(aspect_list_to_process, list):
+            logger.warning(f"SynastryAspects.aspects_list is not a list (type: {type(aspect_list_to_process)}). Defaulting to empty aspects.")
+            aspect_list_to_process = []
+
+        for aspect_tuple in aspect_list_to_process:
+            if isinstance(aspect_tuple, tuple) and len(aspect_tuple) >= 4:
+                try:
                     processed_aspects.append({
                         "planet1": str(aspect_tuple[0]),
                         "planet2": str(aspect_tuple[1]),
@@ -816,32 +788,14 @@ def calculate_synastry(
                         "orb": float(aspect_tuple[3]),
                         "aspect_degrees": float(aspect_tuple[4]) if len(aspect_tuple) > 4 else None
                     })
-                else:
-                    logger.warning(f"Skipping malformed aspect tuple in Synastry: {aspect_tuple}")
-        elif hasattr(synastry_instance, 'aspects') and isinstance(synastry_instance.aspects, list): # Fallback for .aspects
-             for aspect_obj in synastry_instance.aspects: # Assuming it's a list of objects
-                try:
-                    # This is a guess if .aspects contains objects
-                    p1 = getattr(aspect_obj, 'p1_name', getattr(aspect_obj, 'planet1', 'Unknown'))
-                    p2 = getattr(aspect_obj, 'p2_name', getattr(aspect_obj, 'planet2', 'Unknown'))
-                    aspect_name = getattr(aspect_obj, 'aspect', getattr(aspect_obj, 'name', 'Unknown'))
-                    orb = getattr(aspect_obj, 'orb', 0.0)
-                    diff = getattr(aspect_obj, 'diff', None) # Or aspect_degrees
-
-                    processed_aspects.append({
-                        "planet1": str(p1),
-                        "planet2": str(p2),
-                        "aspect_name": str(aspect_name),
-                        "orb": float(orb),
-                        "aspect_degrees": float(diff) if diff is not None else None
-                    })
-                except Exception as e:
-                    logger.warning(f"Could not process synastry aspect object {aspect_obj}: {e}")
-
-
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Skipping malformed synastry aspect data in tuple {aspect_tuple}: {e}")
+            else:
+                logger.warning(f"Skipping malformed aspect entry in SynastryAspects.aspects_list: {aspect_tuple}")
+        
         return {"aspects": processed_aspects, "error": None}
 
-    except KerykeionException as ke:
+    except _KerykeionException as ke:
         logger.error(f"Kerykeion error during synastry calculation: {ke}", exc_info=True)
         return {"aspects": [], "error": f"Kerykeion Synastry Error: {ke}"}
     except Exception as e:
@@ -850,52 +804,30 @@ def calculate_synastry(
 
 
 def calculate_composite_chart(
-    chart1_data: Dict[str, Any],
-    chart2_data: Dict[str, Any]
+    subject1: Optional[_AstrologicalSubject],
+    subject2: Optional[_AstrologicalSubject]
 ) -> Dict[str, Any]:
     """
-    Calculates a composite chart from two natal charts using Kerykeion.
-    Accepts chart data dictionaries.
+    Calculates a composite chart from two AstrologicalSubject instances using Kerykeion.
     Returns a dictionary with composite planets or an error.
     """
-    if not KERYKEION_AVAILABLE:
-        return {"composite_planets": [], "error": "Kerykeion library not available."}
-
-    subject1 = _create_subject_from_chart_data(chart1_data)
-    subject2 = _create_subject_from_chart_data(chart2_data)
+    if not KERYKEION_AVAILABLE or not _CompositeSubjectFactory:
+        return {"composite_planets": [], "error": "Kerykeion library or CompositeSubjectFactory not available."}
 
     if not subject1 or not subject2:
-        error_msg = "Could not create AstrologicalSubject for "
-        if not subject1 and not subject2: error_msg += "both charts."
-        elif not subject1: error_msg += "chart 1."
-        else: error_msg += "chart 2."
+        error_msg = "Invalid AstrologicalSubject provided for "
+        if not subject1 and not subject2: error_msg += "both persons."
+        elif not subject1: error_msg += "person 1."
+        else: error_msg += "person 2."
         return {"composite_planets": [], "error": error_msg}
 
     try:
         composite_factory = CompositeSubjectFactory(subject1, subject2)
-        # Get the actual composite subject model from the factory
         composite_subject_model = composite_factory.get_midpoint_composite_subject_model()
 
         if not composite_subject_model:
             logger.error("CompositeSubjectFactory failed to return a composite model.")
             return {"composite_planets": [], "error": "Failed to generate composite model from factory."}
-        
-        # Extract composite planets. Structure depends on Kerykeion's AstrologicalSubject.
-        # We need to map this to our CelestialBody schema.
-        # The CelestialBody model has:
-        #   name: str
-        #   sign: str
-        #   sign_symbol: str (e.g., '♈')
-        #   degrees: float (longitude)
-        #   norm_degrees: float (longitude within sign, 0-30)
-        #   is_retro: bool
-        #   house: Optional[str] = None (Composite charts usually don't have houses in the same way)
-        #   house_cusp_degrees: Optional[float] = None
-        
-        # Kerykeion CompositeSubjectFactory objects usually have attributes like:
-        # composite_instance.sun, composite_instance.moon, etc.
-        # Each of these is a kerykeion.Planet object which has:
-        # .name, .sign, .sign_num, .position (degrees 0-360), .abs_pos (norm_degrees), .retrograde
         
         processed_planets = []
         planet_names_to_extract = [
@@ -931,7 +863,7 @@ def calculate_composite_chart(
 
         return {"composite_planets": processed_planets, "error": None}
 
-    except KerykeionException as ke:
+    except _KerykeionException as ke:
         logger.error(f"Kerykeion error during composite chart calculation: {ke}", exc_info=True)
         return {"composite_planets": [], "error": f"Kerykeion CompositeSubjectFactory Error: {ke}"}
     except Exception as e:
