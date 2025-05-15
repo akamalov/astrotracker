@@ -693,66 +693,62 @@ def calculate_transits(
     }
     return result
 
-# Helper function to create AstrologicalSubject from chart_data
-def _create_subject_from_chart_data(chart_data: Dict[str, Any]) -> Optional[AstrologicalSubject]:
+# Helper function to create AstrologicalSubject from input data
+async def create_subject_from_input_data(person_input: SynastryCompositePersonInput, db: AsyncSession) -> Optional[_AstrologicalSubject]:
     """
-    Creates a Kerykeion AstrologicalSubject from a dictionary that is expected
-    to be compatible with the output of NatalChartCalculator.calculate_chart()
-    (specifically, the 'info' sub-dictionary).
+    Creates a Kerykeion AstrologicalSubject from SynastryCompositePersonInput data.
+    Fetches coordinates if not provided.
     """
-    if not KERYKEION_AVAILABLE:
-        logger.error("Kerykeion not available, cannot create subject.")
+    if not KERYKEION_AVAILABLE or not _AstrologicalSubject:
+        logger.error("Kerykeion library or AstrologicalSubject is not available. Cannot create subject from input data.")
         return None
 
+    if not person_input:
+        logger.error("person_input is None, cannot create AstrologicalSubject.")
+        return None
+
+    name = person_input.name
+    birth_dt_naive = person_input.birth_datetime # Assuming this is already naive as per Pydantic model
+    city = person_input.city
+    latitude = person_input.latitude
+    longitude = person_input.longitude
+
+    if not all([name, birth_dt_naive, city]):
+        logger.error(f"Input data for {name or 'Unknown Person'} is missing essential fields (name, birth_datetime, or city).")
+        return None
+
+    if latitude is None or longitude is None:
+        logger.info(f"Latitude/Longitude not provided for {name}, attempting to fetch from city: {city}")
+        try:
+            lat, lon = await get_coordinates_for_city(city, db)
+            if lat is None or lon is None:
+                logger.error(f"Could not geocode city {city} for {name}. Cannot create AstrologicalSubject.")
+                return None
+            latitude = lat
+            longitude = lon
+        except Exception as geo_e:
+            logger.error(f"Error during geocoding for {name}, city {city}: {geo_e}")
+            return None
+    
     try:
-        info = chart_data.get("info", {})
-        name = info.get("name", "Unknown")
-        birth_datetime_str = info.get("birth_datetime") # This should be a datetime object already if from NatalChartData
-        city = info.get("city", "Unknown")
-        longitude = info.get("longitude")
-        latitude = info.get("latitude")
-
-        if not birth_datetime_str or not city or longitude is None or latitude is None:
-            logger.error(f"Missing essential data for subject creation: name={name}, city={city}, lon={longitude}, lat={latitude}")
-            return None
-
-        # Ensure birth_datetime is a datetime object
-        if isinstance(birth_datetime_str, str):
-            birth_dt = datetime.fromisoformat(birth_datetime_str)
-        elif isinstance(birth_datetime_str, datetime):
-            birth_dt = birth_datetime_str
-        else:
-            logger.error(f"birth_datetime must be a datetime object or ISO string, got {type(birth_datetime_str)}")
-            return None
-
-        tz_str: Optional[str] = None
-        if TIMEZONEFINDER_AVAILABLE:
-            try:
-                tf = TimezoneFinder()
-                tz_str = tf.timezone_at(lng=longitude, lat=latitude)
-                if not tz_str:
-                    logger.warning(f"TimezoneFinder could not determine timezone for {city} ({latitude}, {longitude}). Kerykeion might default to UTC or fail.")
-            except Exception as tz_e:
-                logger.error(f"Error using TimezoneFinder for {city}: {tz_e}", exc_info=True)
-        else:
-            logger.warning("TimezoneFinder not available. Timezone cannot be determined automatically.")
-
-        subject = AstrologicalSubject(
+        subject = _AstrologicalSubject(
             name=name,
-            year=birth_dt.year,
-            month=birth_dt.month,
-            day=birth_dt.day,
-            hour=birth_dt.hour,
-            minute=birth_dt.minute,
+            year=birth_dt_naive.year,
+            month=birth_dt_naive.month,
+            day=birth_dt_naive.day,
+            hour=birth_dt_naive.hour,
+            minute=birth_dt_naive.minute,
             city=city,
-            lng=longitude,
             lat=latitude,
-            tz_str=tz_str
+            lon=longitude
         )
-        logger.info(f"Successfully created AstrologicalSubject for {name} from chart_data.")
+        logger.info(f"Successfully created AstrologicalSubject for {name} from input data.")
         return subject
+    except _KerykeionException as ke:
+        logger.error(f"KerykeionException creating AstrologicalSubject for {name} from input data: {ke}")
+        return None
     except Exception as e:
-        logger.error(f"Error creating AstrologicalSubject from chart_data for {chart_data.get('info', {}).get('name', 'Unknown')}: {e}", exc_info=True)
+        logger.error(f"Unexpected error creating AstrologicalSubject for {name} from input data: {e}", exc_info=True)
         return None
 
 def calculate_synastry(

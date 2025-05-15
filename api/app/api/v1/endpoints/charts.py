@@ -36,7 +36,7 @@ from app.schemas.user import UserCreate
 from app.db.session import get_async_session
 from app.api.deps import current_active_user
 from app.models.user import User
-from app.services.astrology import NatalChartCalculator, calculate_transits, calculate_synastry, calculate_composite_chart
+from app.services.astrology import NatalChartCalculator, calculate_transits, calculate_synastry, calculate_composite_chart, create_subject_from_input_data
 from app.services.geolocation import get_coordinates_for_city
 from fastapi_users.exceptions import UserNotExists
 from fastapi_users.manager import BaseUserManager
@@ -349,82 +349,87 @@ async def get_chart_transits_endpoint(
 
 
 @router.post("/synastry", response_model=SynastryResult)
-async def calculate_synastry_endpoint(
+async def calculate_synastry_by_id_endpoint(
     request: CalculateSynastryByIdRequest,
     chart_crud: CRUDChart = Depends(get_crud_chart),
     db: AsyncSession = Depends(get_async_session),
 ):
     # Fetch both charts
-    chart1 = await chart_crud.get(id=request.chart1_id)
-    chart2 = await chart_crud.get(id=request.chart2_id)
-    if not chart1 or not chart2:
+    chart1_db = await chart_crud.get(id=request.chart1_id)
+    chart2_db = await chart_crud.get(id=request.chart2_id)
+
+    if not chart1_db or not chart2_db:
         raise HTTPException(status_code=404, detail="One or both charts not found")
-    # Calculate natal chart data for both
-    calc1 = NatalChartCalculator(
-        name=chart1.name,
-        birth_dt=chart1.birth_datetime,
-        city=chart1.city,
-        latitude=chart1.latitude,
-        longitude=chart1.longitude
-    )
-    natal1 = await calc1.calculate_chart()
-    calc2 = NatalChartCalculator(
-        name=chart2.name,
-        birth_dt=chart2.birth_datetime,
-        city=chart2.city,
-        latitude=chart2.latitude,
-        longitude=chart2.longitude
-    )
-    natal2 = await calc2.calculate_chart()
-    # Calculate synastry (sync, so use run_in_threadpool)
-    synastry_data = await run_in_threadpool(calculate_synastry, natal1, natal2)
-    return SynastryResult(
-        chart1_id=request.chart1_id,
-        chart1_name=chart1.name,
-        chart2_id=request.chart2_id,
-        chart2_name=chart2.name,
-        aspects=synastry_data.get("aspects", []),
-        calculation_error=synastry_data.get("error")
-    )
+
+    subject1 = await chart_crud.get_astrological_subject(chart_db=chart1_db, db=db)
+    subject2 = await chart_crud.get_astrological_subject(chart_db=chart2_db, db=db)
+    
+    if not subject1 or not subject2:
+            raise HTTPException(status_code=500, detail="Failed to create astrological subject for one or both charts.")
+
+    synastry_data = await calculate_synastry(subject1, subject2)
+    return SynastryResult(**synastry_data)
 
 @router.post("/composite", response_model=CompositeChartResult)
-async def calculate_composite_endpoint(
+async def calculate_composite_by_id_endpoint(
     request: CalculateCompositeByIdRequest,
     chart_crud: CRUDChart = Depends(get_crud_chart),
     db: AsyncSession = Depends(get_async_session),
 ):
     # Fetch both charts
-    chart1 = await chart_crud.get(id=request.chart1_id)
-    chart2 = await chart_crud.get(id=request.chart2_id)
-    if not chart1 or not chart2:
+    chart1_db = await chart_crud.get(id=request.chart1_id)
+    chart2_db = await chart_crud.get(id=request.chart2_id)
+
+    if not chart1_db or not chart2_db:
         raise HTTPException(status_code=404, detail="One or both charts not found")
-    # Calculate natal chart data for both
-    calc1 = NatalChartCalculator(
-        name=chart1.name,
-        birth_dt=chart1.birth_datetime,
-        city=chart1.city,
-        latitude=chart1.latitude,
-        longitude=chart1.longitude
-    )
-    natal1 = await calc1.calculate_chart()
-    calc2 = NatalChartCalculator(
-        name=chart2.name,
-        birth_dt=chart2.birth_datetime,
-        city=chart2.city,
-        latitude=chart2.latitude,
-        longitude=chart2.longitude
-    )
-    natal2 = await calc2.calculate_chart()
-    # Calculate composite (sync, so use run_in_threadpool)
-    composite_data = await run_in_threadpool(calculate_composite_chart, natal1, natal2)
-    return CompositeChartResult(
-        chart1_id=request.chart1_id,
-        chart1_name=chart1.name,
-        chart2_id=request.chart2_id,
-        chart2_name=chart2.name,
-        composite_planets=composite_data.get("composite_planets"),
-        calculation_error=composite_data.get("error")
-    )
+
+    subject1 = await chart_crud.get_astrological_subject(chart_db=chart1_db, db=db)
+    subject2 = await chart_crud.get_astrological_subject(chart_db=chart2_db, db=db)
+
+    if not subject1 or not subject2:
+            raise HTTPException(status_code=500, detail="Failed to create astrological subject for one or both charts.")
+
+    composite_data = await calculate_composite_chart(subject1, subject2)
+    return CompositeChartResult(**composite_data)
+
+@router.post("/calculate/synastry/by-data", response_model=SynastryResult)
+async def calculate_synastry_by_data_endpoint(
+    request: CalculateSynastryByDataRequest,
+    db: AsyncSession = Depends(get_async_session), # db session for geocoding if needed
+):
+    logger.info(f"Calculating synastry by data for {request.person1.name} and {request.person2.name}")
+    subject1 = await create_subject_from_input_data(request.person1, db)
+    subject2 = await create_subject_from_input_data(request.person2, db)
+
+    if not subject1 or not subject2:
+        # More specific error logging would happen in create_subject_from_input_data
+        raise HTTPException(status_code=400, detail="Could not create astrological subject for one or both persons from input data.")
+
+    try:
+        synastry_data = await calculate_synastry(subject1, subject2)
+        return SynastryResult(**synastry_data)
+    except Exception as e:
+        logger.error(f"Error during synastry (by-data) calculation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error calculating synastry by data: {str(e)}")
+
+@router.post("/calculate/composite/by-data", response_model=CompositeChartResult)
+async def calculate_composite_by_data_endpoint(
+    request: CalculateCompositeByDataRequest,
+    db: AsyncSession = Depends(get_async_session), # db session for geocoding if needed
+):
+    logger.info(f"Calculating composite by data for {request.person1.name} and {request.person2.name}")
+    subject1 = await create_subject_from_input_data(request.person1, db)
+    subject2 = await create_subject_from_input_data(request.person2, db)
+
+    if not subject1 or not subject2:
+        raise HTTPException(status_code=400, detail="Could not create astrological subject for one or both persons from input data.")
+
+    try:
+        composite_data = await calculate_composite_chart(subject1, subject2)
+        return CompositeChartResult(**composite_data)
+    except Exception as e:
+        logger.error(f"Error during composite (by-data) calculation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error calculating composite by data: {str(e)}")
 
 @router.get("/{chart_id}/transits", response_model=TransitChartResponse)
 async def get_chart_transits_get_endpoint(
