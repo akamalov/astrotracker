@@ -7,8 +7,9 @@ import uuid
 
 # ADD SynastryCompositePersonInput to this import line
 from app.schemas.chart import (
-    NatalChartData, CelestialBody, HouseCusp, Aspect, ChartAspects, SynastryAspect,
-    SynastryResult, CompositePlanet, CompositeChartResult, SynastryCompositePersonInput 
+    NatalChartData, CelestialBody, HouseCusp, Aspect,
+    SynastryAspect, SynastryResult, CompositePlanet,
+    CompositeChartResult, SynastryCompositePersonInput 
 )
 
 logger = logging.getLogger(__name__)
