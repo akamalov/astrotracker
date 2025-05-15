@@ -18,14 +18,17 @@ from app.schemas.chart import (
     ChartRead,
     ChartUpdate,
     TransitChartResponse,
-    SynastryChartResponse,
-    CompositeChartResponse,
+    SynastryResult,
+    CompositeChartResult,
     ChartDisplay,
     CalculateNatalChartRequest,
     CalculateTransitsRequest,
-    CalculateSynastryRequest,
-    CalculateCompositeRequest,
+    CalculateSynastryByIdRequest,
+    CalculateCompositeByIdRequest,
     TransitCalculationRequest,
+    CalculateSynastryByDataRequest,
+    CalculateCompositeByDataRequest,
+    SynastryCompositePersonInput
 )
 from app.crud import chart as crud_chart
 from app.crud.user import get_crud_user
@@ -345,9 +348,9 @@ async def get_chart_transits_endpoint(
     return TransitChartResponse(**transit_data)
 
 
-@router.post("/synastry", response_model=SynastryChartResponse)
+@router.post("/synastry", response_model=SynastryResult)
 async def calculate_synastry_endpoint(
-    request: CalculateSynastryRequest,
+    request: CalculateSynastryByIdRequest,
     chart_crud: CRUDChart = Depends(get_crud_chart),
     db: AsyncSession = Depends(get_async_session),
 ):
@@ -375,7 +378,7 @@ async def calculate_synastry_endpoint(
     natal2 = await calc2.calculate_chart()
     # Calculate synastry (sync, so use run_in_threadpool)
     synastry_data = await run_in_threadpool(calculate_synastry, natal1, natal2)
-    return SynastryChartResponse(
+    return SynastryResult(
         chart1_id=request.chart1_id,
         chart1_name=chart1.name,
         chart2_id=request.chart2_id,
@@ -384,9 +387,9 @@ async def calculate_synastry_endpoint(
         calculation_error=synastry_data.get("error")
     )
 
-@router.post("/composite", response_model=CompositeChartResponse)
+@router.post("/composite", response_model=CompositeChartResult)
 async def calculate_composite_endpoint(
-    request: CalculateCompositeRequest,
+    request: CalculateCompositeByIdRequest,
     chart_crud: CRUDChart = Depends(get_crud_chart),
     db: AsyncSession = Depends(get_async_session),
 ):
@@ -414,7 +417,7 @@ async def calculate_composite_endpoint(
     natal2 = await calc2.calculate_chart()
     # Calculate composite (sync, so use run_in_threadpool)
     composite_data = await run_in_threadpool(calculate_composite_chart, natal1, natal2)
-    return CompositeChartResponse(
+    return CompositeChartResult(
         chart1_id=request.chart1_id,
         chart1_name=chart1.name,
         chart2_id=request.chart2_id,

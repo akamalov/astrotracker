@@ -164,52 +164,70 @@ class TransitChartResponse(TransitCalculationResult):
 
 # --- Synastry / Composite Calculation Models ---
 
-# Add request model for /synastry
-class CalculateSynastryRequest(BaseModel):
+# Request model for synastry using existing chart IDs
+class CalculateSynastryByIdRequest(BaseModel): # Renamed from CalculateSynastryRequest
     chart1_id: UUID
     chart2_id: UUID
 
-# class SynastryInput(BaseModel): # Likely redundant with CalculateSynastryRequest
-#     chart1_id: UUID
-#     chart2_id: UUID
+# Request model for composite chart using existing chart IDs
+class CalculateCompositeByIdRequest(BaseModel):
+    chart1_id: UUID
+    chart2_id: UUID
+
+# Reusable input for one person's data for synastry/composite by data
+class SynastryCompositePersonInput(BaseModel):
+    name: str
+    year: int
+    month: int
+    day: int
+    hour: int
+    minute: int
+    city: str
+    latitude: Optional[float] = Field(None, description="Latitude, e.g., 34.0522")
+    longitude: Optional[float] = Field(None, description="Longitude, e.g., -118.2437")
+
+# Request model for synastry using two sets of birth data
+class CalculateSynastryByDataRequest(BaseModel):
+    person1_data: SynastryCompositePersonInput
+    person2_data: SynastryCompositePersonInput
+
+# Request model for composite chart using two sets of birth data
+class CalculateCompositeByDataRequest(BaseModel):
+    person1_data: SynastryCompositePersonInput
+    person2_data: SynastryCompositePersonInput
 
 class SynastryAspect(BaseModel):
-    planet1: str
-    planet2: str
-    aspect_name: str
-    orb: float
+    planet1: str  # Name of the planet/point in the first chart
+    planet2: str  # Name of the planet/point in the second chart
+    aspect_name: str # e.g., "Trine", "Square"
+    orb: float    # Orb of the aspect in degrees
 
 class SynastryResult(BaseModel):
-    chart1_id: UUID
     chart1_name: str
-    chart2_id: UUID
     chart2_name: str
+    chart1_id: Optional[UUID] = None # Populated if by ID
+    chart2_id: Optional[UUID] = None # Populated if by ID
     aspects: List[SynastryAspect]
+    # Optionally include summaries or full natal data for context
+    # chart1_details: Optional[NatalChartData] = None
+    # chart2_details: Optional[NatalChartData] = None
     calculation_error: Optional[str] = None
 
-# Add the missing SynastryChartResponse (can inherit from SynastryResult)
-class SynastryChartResponse(SynastryResult):
-    """Response model for the synastry endpoint."""
-    pass
-
-# Add request model for /composite
-class CalculateCompositeRequest(BaseModel):
-    chart1_id: UUID
-    chart2_id: UUID
+# Model for Composite Chart data (similar to NatalChartData)
+class CompositeChartData(BaseModel):
+    info: NatalChartInfo # Can store names of the two people or a generic "Composite of X and Y"
+    planets: Dict[str, CelestialBody]
+    houses: List[HouseCusp] # Houses of the composite chart
+    aspects: List[Aspect]   # Aspects within the composite chart
+    calculation_error: Optional[str] = None
 
 class CompositeChartResult(BaseModel):
-    # Define based on desired output structure for composite charts
-    chart1_id: UUID
     chart1_name: str
-    chart2_id: UUID
     chart2_name: str
-    composite_planets: Optional[Dict[str, Any]] = None # Placeholder structure
+    chart1_id: Optional[UUID] = None # Populated if by ID
+    chart2_id: Optional[UUID] = None # Populated if by ID
+    composite_chart_data: CompositeChartData
     calculation_error: Optional[str] = None
-
-# Add the missing CompositeChartResponse (can inherit from CompositeChartResult)
-class CompositeChartResponse(CompositeChartResult):
-    """Response model for the composite chart endpoint."""
-    pass
 
 # Add the missing ChartUpdate schema
 class ChartUpdate(BaseModel):

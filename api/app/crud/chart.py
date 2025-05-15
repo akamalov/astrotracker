@@ -12,6 +12,16 @@ from app.db.session import get_async_session
 from app.models.chart import Chart
 from app.schemas.chart import ChartCreate, ChartUpdate
 
+# Import Kerykeion components from the service layer to respect availability checks
+from app.services.astrology import (
+    _AstrologicalSubject, 
+    _KerykeionException, 
+    KERYKEION_AVAILABLE,
+    NatalChartCalculator # For type hinting if needed, or direct use if making a new subject
+)
+# Need city to lat/lon conversion if not already on chart_db
+from app.services.geolocation import get_coordinates_for_city
+
 logger = logging.getLogger(__name__) # Get logger for this module
 
 # Placeholder implementation - Modified for session injection
@@ -100,6 +110,69 @@ class CRUDChart:
             await self.db.commit()
             return obj
         return None
+
+    async def get_astrological_subject(self, chart_db: Chart, db: AsyncSession) -> Optional[_AstrologicalSubject]:
+        """
+        Converts a Chart database model object into a Kerykeion AstrologicalSubject instance.
+        Uses latitude and longitude from the chart_db if available, otherwise fetches them.
+        """
+        if not KERYKEION_AVAILABLE or not _AstrologicalSubject:
+            logger.error("Kerykeion library or AstrologicalSubject is not available. Cannot create subject.")
+            return None
+
+        if not chart_db:
+            logger.error("chart_db object is None, cannot create AstrologicalSubject.")
+            return None
+
+        # Ensure all necessary data is present
+        if not all([chart_db.name, chart_db.birth_datetime, chart_db.city]):
+            logger.error(f"Chart ID {chart_db.id} is missing essential data (name, birth_datetime, or city) for AstrologicalSubject creation.")
+            return None
+        
+        latitude = chart_db.latitude
+        longitude = chart_db.longitude
+
+        # If lat/lon are not directly on the chart_db, fetch them
+        # This is a common scenario if charts are created without immediate geocoding
+        # or if the Chart model doesn't store them directly from creation.
+        if latitude is None or longitude is None:
+            logger.info(f"Latitude/Longitude not found on chart_db for {chart_db.name}, attempting to fetch from city: {chart_db.city}")
+            try:
+                lat, lon = await get_coordinates_for_city(chart_db.city, db) # Pass the current session
+                if lat is None or lon is None:
+                    logger.error(f"Could not geocode city {chart_db.city} for chart ID {chart_db.id}. Cannot create AstrologicalSubject.")
+                    return None
+                latitude = lat
+                longitude = lon
+            except Exception as geo_e:
+                logger.error(f"Error during geocoding for chart ID {chart_db.id}, city {chart_db.city}: {geo_e}")
+                return None
+        
+        try:
+            # Kerykeion's AstrologicalSubject expects naive datetime for birth_dt
+            # The Chart model stores naive UTC datetime.
+            naive_birth_dt = chart_db.birth_datetime # Assuming it's already naive UTC as per previous CRUD logic
+
+            subject = _AstrologicalSubject(
+                name=chart_db.name,
+                year=naive_birth_dt.year,
+                month=naive_birth_dt.month,
+                day=naive_birth_dt.day,
+                hour=naive_birth_dt.hour,
+                minute=naive_birth_dt.minute,
+                city=chart_db.city,
+                lat=latitude, # Use fetched or existing latitude
+                lon=longitude # Use fetched or existing longitude
+                # nation and sex are optional in Kerykeion
+            )
+            logger.info(f"Successfully created AstrologicalSubject for {chart_db.name} (ID: {chart_db.id})")
+            return subject
+        except _KerykeionException as ke:
+            logger.error(f"KerykeionException creating AstrologicalSubject for {chart_db.name} (ID: {chart_db.id}): {ke}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error creating AstrologicalSubject for {chart_db.name} (ID: {chart_db.id}): {e}", exc_info=True)
+            return None
 
 # Remove direct instantiation
 # crud_chart = CRUDChart() 
