@@ -1,0 +1,173 @@
+import apiClient from '../../lib/apiClient';
+import type { PersonInputData } from '../../pages/synastry/compare.astro'; // Or define/import directly
+
+// Define the expected structure for Synastry API response aspects
+interface SynastryAspect {
+  planet1: string;
+  planet2: string;
+  aspect_name: string;
+  orb: number;
+  aspect_degrees: number;
+}
+
+interface SynastryAPIResponse {
+  chart1_name: string;
+  chart2_name: string;
+  aspects: SynastryAspect[];
+  calculation_error?: string | null;
+  // chart1_id and chart2_id are also in the response but not strictly needed for display here
+}
+
+export interface Props {
+  person1Data: PersonInputData;
+}
+
+const { person1Data } = Astro.props;
+
+<div id="synastry-form-container" class="mt-6 p-6 border border-gray-300 rounded-lg shadow-md bg-white">
+  <form id="person2Form" class="space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label for="p2_name" class="block text-sm font-medium text-gray-700">Person 2 Name:</label>
+        <input type="text" id="p2_name" name="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <label for="p2_year" class="block text-sm font-medium text-gray-700">Year:</label>
+        <input type="number" id="p2_year" name="year" required placeholder="YYYY" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+      <div>
+        <label for="p2_month" class="block text-sm font-medium text-gray-700">Month:</label>
+        <input type="number" id="p2_month" name="month" required placeholder="MM" min="1" max="12" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+      <div>
+        <label for="p2_day" class="block text-sm font-medium text-gray-700">Day:</label>
+        <input type="number" id="p2_day" name="day" required placeholder="DD" min="1" max="31" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label for="p2_hour" class="block text-sm font-medium text-gray-700">Hour (24h):</label>
+        <input type="number" id="p2_hour" name="hour" required placeholder="HH" min="0" max="23" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+      <div>
+        <label for="p2_minute" class="block text-sm font-medium text-gray-700">Minute:</label>
+        <input type="number" id="p2_minute" name="minute" required placeholder="MM" min="0" max="59" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <label for="p2_city" class="block text-sm font-medium text-gray-700">City:</label>
+        <input type="text" id="p2_city" name="city" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+      <div>
+        <label for="p2_latitude" class="block text-sm font-medium text-gray-700">Latitude:</label>
+        <input type="number" step="any" id="p2_latitude" name="latitude" required placeholder="e.g., 34.0522" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+      <div>
+        <label for="p2_longitude" class="block text-sm font-medium text-gray-700">Longitude:</label>
+        <input type="number" step="any" id="p2_longitude" name="longitude" required placeholder="e.g., -118.2437" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+    </div>
+     <div>
+        <label for="p2_country_code" class="block text-sm font-medium text-gray-700">Country Code (Optional):</label>
+        <input type="text" id="p2_country_code" name="country_code" placeholder="e.g., US" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+      </div>
+
+    <div class="flex justify-end">
+      <button type="submit" id="calculateSynastryBtn" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+        Calculate Synastry
+      </button>
+    </div>
+  </form>
+
+  <div id="synastryResult" class="mt-8"></div>
+  <div id="synastryError" class="mt-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg border border-red-300" style="display: none;"></div>
+</div>
+
+<script define:vars={{ person1Data }}>
+  const form = document.getElementById('person2Form');
+  const resultDiv = document.getElementById('synastryResult');
+  const errorDiv = document.getElementById('synastryError');
+  const submitButton = document.getElementById('calculateSynastryBtn');
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    resultDiv.innerHTML = '';
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
+    submitButton.disabled = true;
+    submitButton.textContent = 'Calculating...';
+
+    const formData = new FormData(form);
+    const person2Data = {
+      name: formData.get('name'),
+      year: parseInt(formData.get('year')),
+      month: parseInt(formData.get('month')),
+      day: parseInt(formData.get('day')),
+      hour: parseInt(formData.get('hour')),
+      minute: parseInt(formData.get('minute')),
+      city: formData.get('city'),
+      latitude: parseFloat(formData.get('latitude')),
+      longitude: parseFloat(formData.get('longitude')),
+      country_code: formData.get('country_code') || undefined, // Handle optional field
+    };
+
+    // Basic validation (you should enhance this)
+    if (!person2Data.name || isNaN(person2Data.year) || isNaN(person2Data.latitude)) {
+      errorDiv.textContent = 'Please fill in all required fields for Person 2 correctly.';
+      errorDiv.style.display = 'block';
+      submitButton.disabled = false;
+      submitButton.textContent = 'Calculate Synastry';
+      return;
+    }
+
+    try {
+      const response = await apiClient.post('/charts/calculate/synastry/by-data', {
+        person1_data: person1Data, // This comes from Astro.props
+        person2_data: person2Data,
+      });
+
+      if (response.data && response.data.aspects) {
+        const data = response.data; // Type assertion if needed: response.data as SynastryAPIResponse;
+        if (data.calculation_error) {
+            errorDiv.textContent = `Calculation Error: ${data.calculation_error}`;
+            errorDiv.style.display = 'block';
+        } else if (data.aspects.length === 0) {
+            resultDiv.innerHTML = `<p class="text-gray-600">No significant synastry aspects found between ${data.chart1_name} and ${data.chart2_name}.</p>`;
+        } else {
+            let html = `<h3 class="text-lg font-semibold mb-3">Synastry Aspects: ${data.chart1_name} & ${data.chart2_name}</h3>`;
+            html += '<ul class="list-disc pl-5 space-y-1">';
+            data.aspects.forEach(aspect => {
+                html += `<li>${aspect.planet1} ${aspect.aspect_name} ${aspect.planet2} (Orb: ${aspect.orb}°, Degrees: ${aspect.aspect_degrees.toFixed(2)}°)</li>`;
+            });
+            html += '</ul>';
+            resultDiv.innerHTML = html;
+        }
+      } else {
+        throw new Error('Invalid API response structure.');
+      }
+    } catch (err) {
+      console.error('Synastry calculation error:', err);
+      let errorMessage = 'Failed to calculate synastry. Please check the console for details.';
+      if (err.response && err.response.data && err.response.data.detail) {
+        if (Array.isArray(err.response.data.detail)) {
+            errorMessage = err.response.data.detail.map(d => `${d.loc.join(' -> ')}: ${d.msg}`).join('; ');
+        } else if (typeof err.response.data.detail === 'string'){
+            errorMessage = err.response.data.detail;
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      errorDiv.textContent = errorMessage;
+      errorDiv.style.display = 'block';
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Calculate Synastry';
+    }
+  });
+</script> 

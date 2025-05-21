@@ -133,16 +133,16 @@ export const ChartWithTransits: React.FC<ChartWithTransitsProps> = ({ chartId, c
     setLoading(true);
     setError(null);
     try {
-      const payload = {
-        transit_year: date.getFullYear(),
-        transit_month: date.getMonth() + 1,
-        transit_day: date.getDate(),
-        transit_hour: date.getHours(),
-        transit_minute: date.getMinutes(),
-      };
-      const res = await axios.post(
-        `/api/v1/charts/${chartId}/transits`,
-        payload
+      // Format date to ISO string YYYY-MM-DDTHH:mm:ss for the GET request
+      const transitDateTimeISO = date.getFullYear() + '-' +
+                               String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                               String(date.getDate()).padStart(2, '0') + 'T' +
+                               String(date.getHours()).padStart(2, '0') + ':' +
+                               String(date.getMinutes()).padStart(2, '0') + ':' +
+                               String(date.getSeconds()).padStart(2, '0');
+
+      const res = await axios.get(
+        `/api/v1/charts/${chartId}/transits?transit_datetime=${transitDateTimeISO}`
       );
       cacheRef.current.set(key, res.data);
       // Limit cache size
@@ -168,13 +168,16 @@ export const ChartWithTransits: React.FC<ChartWithTransitsProps> = ({ chartId, c
       const key = formatDateKey(d);
       if (!cacheRef.current.has(key)) {
         // Fire and forget
-        axios.post(`/api/v1/charts/${chartId}/transits`, {
-          transit_year: d.getFullYear(),
-          transit_month: d.getMonth() + 1,
-          transit_day: d.getDate(),
-          transit_hour: d.getHours(),
-          transit_minute: d.getMinutes(),
-        }).then(res => {
+        // Format date to ISO string YYYY-MM-DDTHH:mm:ss for the GET request
+        const transitDateTimeISO = d.getFullYear() + '-' +
+                                 String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                                 String(d.getDate()).padStart(2, '0') + 'T' +
+                                 String(d.getHours()).padStart(2, '0') + ':' +
+                                 String(d.getMinutes()).padStart(2, '0') + ':' +
+                                 String(d.getSeconds()).padStart(2, '0');
+
+        axios.get(`/api/v1/charts/${chartId}/transits?transit_datetime=${transitDateTimeISO}`)
+        .then(res => {
           cacheRef.current.set(key, res.data);
           if (cacheRef.current.size > MAX_CACHE_SIZE) {
             const oldest = cacheRef.current.keys().next().value;

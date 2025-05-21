@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SynastryCalculator from '../components/synastry/SynastryCalculator.tsx';
+---
+
+<Layout title="Synastry & Composite Calculator | AstroTracker">
+  <main class="py-8 px-4">
+    <SynastryCalculator client:load />
+  </main>
+</Layout> 

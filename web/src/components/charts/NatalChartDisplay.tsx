@@ -392,7 +392,7 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
                         content={
                           <div>
                             <strong>Transiting {planet.name}</strong><br />
-                            {planet.sign} {degree.toFixed(2)}°
+                            {planet.sign} {degree.toFixed(2)}°{planet.is_retrograde ? ' R' : ''}
                           </div>
                         }
                         placement="top"
@@ -501,9 +501,26 @@ export default function NatalChartDisplay({ chartData, transitData }: NatalChart
                   <span style={{ width: 24, height: 0, borderTop: '2.5px solid #FF4081', display: 'inline-block' }}></span>
                   <span>Highlighted Aspect</span>
                 </span>
+                {/* Updated Transit Aspect Legend */}
+                <span className="flex items-center gap-2">
+                  <span style={{ width: 24, height: 0, borderTop: '2px solid #60a5fa', display: 'inline-block' }}></span>
+                  <span>Tr. Conjunction (Blue)</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span style={{ width: 24, height: 0, borderTop: '2px solid #ef4444', display: 'inline-block' }}></span>
+                  <span>Tr. Hard Aspect (Red)</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span style={{ width: 24, height: 0, borderTop: '2px solid #22c55e', display: 'inline-block' }}></span>
+                  <span>Tr. Easy Aspect (Green)</span>
+                </span>
+                 <span className="flex items-center gap-2">
+                  <span style={{ width: 24, height: 0, borderTop: '2px dashed #22c55e', display: 'inline-block' }}></span>
+                  <span>Tr. Sextile/Quincunx (Dashed Green)</span>
+                </span>
                 <span className="flex items-center gap-2">
                   <span style={{ width: 24, height: 0, borderTop: '2px solid #38bdf8', display: 'inline-block' }}></span>
-                  <span>Transit Aspect</span>
+                  <span>Tr. Other Aspect (Lt. Blue)</span>
                 </span>
               </div>
             </div>

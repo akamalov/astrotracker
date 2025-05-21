@@ -1,0 +1,149 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import InlineSynastry from "../../components/synastry/InlineSynastry";
+// apiClient and useAuthStore will be imported in the client-side script
+
+export const prerender = false;
+
+// Server-side variables are now minimal, error handling might also move client-side or be set by client
+let pageTitle = "Compare Charts for Synastry"; // Default title
+const chart1IdFromParams = Astro.url.searchParams.get("chart1Id");
+
+if (chart1IdFromParams) {
+  // We can set an initial title, but the name will be fetched client-side
+  pageTitle = `Synastry: Loading Chart ${chart1IdFromParams}...`;
+}
+
+// Define types here if they are also used by other server-side logic (if any)
+// Otherwise, they can also be defined within the client-side script if only used there.
+interface PersonInputData {
+  name: string;
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  latitude: number;
+  longitude: number;
+  city: string;
+  country_code?: string;
+}
+
+interface ChartData {
+  id: string;
+  name: string;
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  latitude: number;
+  longitude: number;
+  city: string;
+  country_code?: string;
+}
+---
+
+<Layout title="Synastry Comparison">
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6 text-center">Synastry Comparison</h1>
+    <div class="max-w-2xl mx-auto">
+      <InlineSynastry currentChartId={""} client:only="react" />
+    </div>
+    <div class="mt-8 text-center">
+      <a href="/dashboard" class="text-indigo-600 hover:text-indigo-800 hover:underline">
+        &larr; Back to Dashboard
+      </a>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import apiClient from "../../lib/apiClient.js"; // Note .js if it's a JS file
+  import { useAuthStore } from "../../stores/authStore.js";
+
+  // Helper function to update DOM elements
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+  function show(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('hidden');
+  }
+  function hide(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  }
+
+  async function loadChartData() {
+    const chart1Id = new URLSearchParams(window.location.search).get("chart1Id");
+    const pageTitleEl = document.getElementById('page-title');
+    const backToChartLink = document.getElementById('back-to-chart-link');
+
+    if (!chart1Id) {
+      setText('error-message', "Chart ID for Person 1 is missing.");
+      show('error-display');
+      if(pageTitleEl) pageTitleEl.textContent = "Error";
+      return;
+    }
+
+    // Update initial title while loading
+    if(pageTitleEl) pageTitleEl.textContent = `Synastry: Loading Chart ${chart1Id}...`;
+    if(backToChartLink) backToChartLink.innerHTML = `&larr; Back to Chart ${chart1Id}'s Details`;
+
+    const token = useAuthStore.getState().token;
+    console.log("Frontend: Token being sent:", token); // DEBUG LOG
+
+    if (!token) {
+      setText('error-message', "You must be logged in to view chart details.");
+      show('error-display');
+      if(pageTitleEl) pageTitleEl.textContent = "Authentication Error";
+      // window.location.href = '/auth/login'; // Optional: redirect to login
+      return;
+    }
+
+    try {
+      const response = await apiClient.get(`/charts/${chart1Id}`);
+      const chart1Data = response.data; // Type assertion might be needed if not using <ChartData> in apiClient call here
+      console.log("[Client-side] Received chart1Data from API:", JSON.stringify(chart1Data, null, 2));
+
+      if (chart1Data) {
+        // Update page title with actual name
+        if(pageTitleEl) pageTitleEl.textContent = `Synastry: ${chart1Data.name} with...`;
+        if(backToChartLink && chart1Data.name) backToChartLink.innerHTML = `&larr; Back to ${chart1Data.name}'s Details`;
+
+        // Populate Person 1 details
+        setText('person1-name', chart1Data.name);
+        setText('person1-birthdate', `${chart1Data.month}/${chart1Data.day}/${chart1Data.year}`);
+        setText('person1-birthtime', `${String(chart1Data.hour).padStart(2, '0')}:${String(chart1Data.minute).padStart(2, '0')}`);
+        setText('person1-location', `${chart1Data.city} (${chart1Data.latitude}, ${chart1Data.longitude})`);
+        show('person1-details-container');
+        hide('error-display');
+
+        // TODO: Now initialize or pass chart1Data to your SynastryComparisonForm
+        // This might involve dynamically rendering the form component or hydrating it
+        // if it's an Astro component with client-side interactivity.
+
+      } else {
+        setText('error-message', `Could not load data for Chart ID: ${chart1Id}.`);
+        show('error-display');
+        if(pageTitleEl) pageTitleEl.textContent = "Data Not Found";
+      }
+    } catch (e) {
+      console.error(`[Client-side] Failed to fetch chart 1 data (ID ${chart1Id}):`, e);
+      let errorMessage = 'Failed to load data for Person 1.';
+      if (e.response && e.response.status === 404) {
+        errorMessage = `Chart for Person 1 (ID: ${chart1Id}) not found.`;
+      } else if (e.response && e.response.status === 401) {
+        errorMessage = 'Unauthorized. Please ensure you are logged in.';
+      }
+      setText('error-message', errorMessage);
+      show('error-display');
+      if(pageTitleEl) pageTitleEl.textContent = "Error Loading Data";
+    }
+  }
+
+  // Run on page load
+  document.addEventListener('DOMContentLoaded', loadChartData);
+</script> 

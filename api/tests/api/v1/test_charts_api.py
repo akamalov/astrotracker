@@ -564,3 +564,106 @@ async def test_delete_chart_endpoint(
             pass
         assert False, f"Unexpected response: {response.status_code} {response.text}"
 
+
+@pytest.mark.asyncio
+async def test_get_chart_transits_get_endpoint(
+    client: AsyncClient,
+    mocker,
+    crud_chart_override # Use the fixture that provides the mocked CRUDChart
+):
+    """Test GET /charts/{chart_id}/transits endpoint for calculating transits for a saved chart."""
+    # 1. Setup User and Auth (similar to other tests)
+    test_user_email = f"get_transits_test_{uuid4()}@example.com"
+    test_user_password = "password123"
+    user_data = await register_user_via_api(client, test_user_email, test_user_password)
+    mock_user_id = user_data["id"]
+
+    login_data = {"username": test_user_email, "password": test_user_password}
+    login_response = await client.post("/api/v1/auth/jwt/login", data=login_data)
+    tokens = login_response.json()
+    access_token = tokens["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    test_chart_id = uuid4()
+    transit_iso_datetime = "2024-08-15T10:30:00"
+    expected_transit_dt = datetime(2024, 8, 15, 10, 30, 0)
+
+    # 2. Mock `crud_chart_override.get` to return a sample natal chart
+    mock_db_chart_data = {
+        "id": test_chart_id,
+        "name": "Test Chart for GET Transits",
+        "birth_datetime": datetime(1992, 6, 21, 15, 45),
+        "city": "Berlin",
+        "location_name": "Berlin, Germany",
+        "latitude": 52.5200,
+        "longitude": 13.4050,
+        "user_id": mock_user_id,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+        "chart_data": {"planets": {"Sun": {"longitude": 90.0}}} # Simplified chart_data for test
+    }
+    # Ensure the mock_db_chart_data can be validated by ChartDisplay if necessary,
+    # or simply ensure the object passed to calculate_transits is correctly formed.
+    # For this test, we only need the CRUD to return something that the endpoint can process.
+    # The actual structure for calculate_transits will be built by the endpoint from this.
+    mock_returned_chart = Chart(**mock_db_chart_data) # Use the DB model
+
+    # Use the provided crud_chart_override fixture to mock the get method
+    crud_chart_override.get = AsyncMock(return_value=mock_returned_chart)
+
+    # 3. Mock `calculate_transits` service function
+    # Use the global mock_transit_calc_result_success or define a new one
+    expected_transit_response_data = {
+        "transit_datetime": transit_iso_datetime, # Match expected output format
+        "transiting_planets": {"TransitSun": {"name": "TransitSun", "longitude": 150.0}},
+        "aspects_to_natal": [{"transiting_planet": "TransitSun", "aspect_name": "Sextile", "natal_planet": "Sun", "orb": 0.0}],
+        "calculation_error": None,
+        # "info": "Mocked successful transit calculation" # Optional if your schema has it
+    }
+    # The actual calculate_transits returns a dict, which is then parsed by TransitChartResponse
+    # So, the mock should return a dict that can be parsed by TransitChartResponse
+    mock_service_calculate_transits = mocker.patch(
+        "app.api.v1.endpoints.charts.calculate_transits",
+        return_value=expected_transit_response_data # This should be a dict
+    )
+
+    # 4. Make GET request
+    response = await client.get(
+        f"/api/v1/charts/{test_chart_id}/transits?transit_datetime={transit_iso_datetime}",
+        headers=headers
+    )
+
+    # 5. Assertions
+    assert response.status_code == 200, f"Response: {response.text}"
+    data = response.json()
+
+    assert data["transit_datetime"] == transit_iso_datetime
+    assert "TransitSun" in data["transiting_planets"]
+    assert len(data["aspects_to_natal"]) == 1
+    assert data["aspects_to_natal"][0]["transiting_planet"] == "TransitSun"
+
+    # 6. Assertions for mock calls
+    crud_chart_override.get.assert_awaited_once_with(id=test_chart_id)
+
+    # Check arguments passed to calculate_transits
+    # The endpoint constructs natal_chart_data from mock_returned_chart
+    # and parses transit_iso_datetime to a datetime object.
+    mock_service_calculate_transits.assert_awaited_once()
+    call_args_list = mock_service_calculate_transits.call_args_list
+    assert len(call_args_list) == 1
+    args, kwargs = call_args_list[0]
+    
+    # Check natal_chart_data passed to service
+    passed_natal_data = kwargs.get('natal_chart_data')
+    assert passed_natal_data is not None
+    assert passed_natal_data.get('info', {}).get('name') == mock_db_chart_data['name']
+    assert passed_natal_data.get('info', {}).get('birth_datetime') == mock_db_chart_data['birth_datetime']
+    assert passed_natal_data.get('info', {}).get('city') == mock_db_chart_data['city']
+    assert passed_natal_data.get('info', {}).get('latitude') == mock_db_chart_data['latitude']
+    assert passed_natal_data.get('info', {}).get('longitude') == mock_db_chart_data['longitude']
+    assert passed_natal_data.get('planets') == mock_db_chart_data['chart_data']['planets'] # Assuming direct pass-through
+
+    # Check transit_dt passed to service
+    passed_transit_dt = kwargs.get('transit_dt')
+    assert passed_transit_dt == expected_transit_dt
+
