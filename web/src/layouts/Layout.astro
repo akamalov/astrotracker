@@ -30,12 +30,10 @@ const { title = "AstroTracker" } = Astro.props;
         <a href="/" class="text-xl font-bold hover:text-indigo-200">AstroTracker</a> 
         <a href="#" class="hover:text-indigo-200">About</a> <!-- Placeholder -->
         <a href="/dashboard" id="dashboard-link" class="hover:text-indigo-200">Dashboard</a>
-        <div id="auth-links-logged-out" class="space-x-4">
+        <div id="auth-links" class="space-x-4 flex items-center">
           <a href="/login" class="hover:text-indigo-200">Login</a>
+          <LogoutButton client:load />
           <a href="/register" class="hover:text-indigo-200">Register</a>
-        </div>
-        <div id="auth-links-logged-in" style="display: none;">
-          <LogoutButton client:load /> {/** Load the logout button */} 
         </div>
       </div>
     </nav>
@@ -52,35 +50,7 @@ const { title = "AstroTracker" } = Astro.props;
   </footer>
 
   <script>
-    // Client-side script to update auth links based on Zustand store
-    import { useAuthStore } from "../stores/authStore";
-
-    const loggedOutLinks = document.getElementById("auth-links-logged-out");
-    const loggedInLinks = document.getElementById("auth-links-logged-in");
-    const dashboardLink = document.getElementById("dashboard-link");
-
-    // Function to update UI based on auth state
-    function updateAuthUI(isAuthenticated: boolean) {
-      if (loggedOutLinks && loggedInLinks && dashboardLink) {
-        if (isAuthenticated) {
-          loggedOutLinks.style.display = "none";
-          loggedInLinks.style.display = "block";
-          dashboardLink.style.display = "inline"; // Show dashboard link
-        } else {
-          loggedOutLinks.style.display = "block";
-          loggedInLinks.style.display = "none";
-          dashboardLink.style.display = "none"; // Hide dashboard link
-        }
-      }
-    }
-
-    // Initial UI update based on persisted state
-    updateAuthUI(useAuthStore.getState().isAuthenticated);
-
-    // Subscribe to store changes to keep UI in sync
-    useAuthStore.subscribe((state) => {
-      updateAuthUI(state.isAuthenticated);
-    });
+    // Remove the client-side script that toggles auth links, as both buttons are always shown
   </script>
 </body>
 </html>
