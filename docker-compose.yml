@@ -38,6 +38,23 @@ services:
       - ./api/.env 
     restart: unless-stopped
 
+  # Frontend Service Configuration
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: astrotracker_web
+    depends_on:
+      - api
+    volumes:
+      - ./web:/app
+      - /app/node_modules # Anonymous volume for node_modules
+    ports:
+      - "4321:4321" # Astro dev server default port
+    environment:
+      - NODE_ENV=development
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local 
