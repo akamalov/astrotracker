@@ -14,8 +14,14 @@ RUN npm install -g pnpm
 # Install dependencies
 RUN pnpm install
 
-# Copy source code
-COPY . .
+# Copy source code (excluding node_modules)
+COPY src ./src
+COPY public ./public
+COPY *.config.* ./
+COPY *.json ./
+COPY .eslintrc.cjs ./
+COPY .prettierrc.cjs ./
+COPY .prettierignore ./
 
 # Expose the port that Astro runs on
 EXPOSE 4321
