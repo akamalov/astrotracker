@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import PostgresDsn, computed_field, Field, SecretStr
+from pydantic import PostgresDsn, computed_field, Field, SecretStr, EmailStr
 from typing import List, Optional
 
 class Settings(BaseSettings):
@@ -50,11 +50,22 @@ class Settings(BaseSettings):
     SECRET_KEY: SecretStr = Field(...)
 
     # --- Google OAuth Settings ---
-    GOOGLE_OAUTH_CLIENT_ID: str | None = Field(default=None)
-    GOOGLE_OAUTH_CLIENT_SECRET: SecretStr | None = Field(default=None)
+    GOOGLE_OAUTH_CLIENT_ID: str | None = None
+    GOOGLE_OAUTH_CLIENT_SECRET: str | None = None
 
     # --- Monitoring Settings ---
     SENTRY_DSN: SecretStr | None = Field(default=None)
+
+    # --- Email Settings ---
+    JWT_AUDIENCE: str = "fastapi-users:auth"
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int | None = None
+    SMTP_PASSWORD: str | None = None
+    EMAILS_FROM_EMAIL: EmailStr | None = None
+    EMAILS_FROM_NAME: str | None = None
+
+    # Kerykeion settings
+    KERYKEION_API_KEY: str | None = None
 
     # Configure Pydantic Settings to load from .env file
     # Case sensitivity matters for environment variables

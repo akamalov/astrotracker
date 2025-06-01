@@ -25,7 +25,7 @@ google_oauth_client = None
 
 # Define the BACKEND callback URL that Google MUST redirect to
 # This MUST match exactly what is in Google Cloud Console
-# BACKEND_CALLBACK_URL = "http://localhost:8000/api/v1/auth/google/callback"
+BACKEND_CALLBACK_URL = "http://localhost:8000/api/v1/auth/google/callback"
 
 # Define the FRONTEND callback URL (where backend redirects user AFTER success)
 FRONTEND_CALLBACK_URL = f"{settings.FRONTEND_URL}/auth/google/callback"
@@ -33,10 +33,9 @@ FRONTEND_CALLBACK_URL = f"{settings.FRONTEND_URL}/auth/google/callback"
 if settings.GOOGLE_OAUTH_CLIENT_ID and settings.GOOGLE_OAUTH_CLIENT_SECRET:
     google_oauth_client = GoogleOAuth2(
         settings.GOOGLE_OAUTH_CLIENT_ID,
-        settings.GOOGLE_OAUTH_CLIENT_SECRET.get_secret_value(),
+        settings.GOOGLE_OAUTH_CLIENT_SECRET # No .get_secret_value()
         # Explicitly tell httpx-oauth what redirect_uri to use when talking to Google
         # This MUST match the one registered in Google Cloud Console
-        # REMOVED AGAIN: redirect_uri=BACKEND_CALLBACK_URL 
     )
 else:
     print("Warning: Google OAuth credentials not configured, Google login will be disabled.")

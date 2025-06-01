@@ -1,0 +1,116 @@
+---
+// OAuth callback page that handles Google's authorization code
+// This page processes the OAuth code and exchanges it for authentication
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Processing Authentication - AstroTracker</title>
+  </head>
+  <body>
+    <div style="
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-align: center;
+    ">
+      <div>
+        <h1 style="margin-bottom: 1rem;">Processing Authentication</h1>
+        <p id="status">Exchanging authorization code...</p>
+        <div style="margin-top: 2rem;">
+          <div style="display: inline-block; width: 2rem; height: 2rem; border: 2px solid #ffffff40; border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+
+    <script>
+      async function handleOAuthCallback() {
+        const statusEl = document.getElementById('status');
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const error = urlParams.get('error');
+        
+        if (error) {
+          statusEl.textContent = `OAuth error: ${error}`;
+          setTimeout(() => {
+            window.location.href = '/login?error=oauth_denied';
+          }, 2000);
+          return;
+        }
+        
+        if (!code) {
+          statusEl.textContent = 'No authorization code received';
+          setTimeout(() => {
+            window.location.href = '/login?error=no_code';
+          }, 2000);
+          return;
+        }
+        
+        try {
+          statusEl.textContent = 'Exchanging code for authentication...';
+          
+          // Exchange the authorization code for user authentication via our backend
+          const response = await fetch('/api/v1/auth/google/callback', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include', // Include cookies for authentication
+            body: JSON.stringify({
+              code: code,
+              redirect_uri: window.location.origin + '/auth/callback'
+            })
+          });
+          
+          if (response.ok) {
+            statusEl.textContent = 'Authentication successful! Loading user data...';
+            
+            // Check if we're now authenticated by fetching user info
+            const userResponse = await fetch('/api/v1/users/me', {
+              credentials: 'include'
+            });
+            
+            if (userResponse.ok) {
+              const user = await userResponse.json();
+              statusEl.textContent = `Welcome ${user.email}! Redirecting to dashboard...`;
+              
+              // Redirect to dashboard
+              setTimeout(() => {
+                window.location.href = '/dashboard';
+              }, 1500);
+            } else {
+              throw new Error('Failed to fetch user data');
+            }
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Authentication failed');
+          }
+        } catch (error) {
+          console.error('OAuth callback error:', error);
+          statusEl.textContent = `Authentication error: ${error.message}`;
+          
+          setTimeout(() => {
+            window.location.href = '/login?error=oauth_error';
+          }, 3000);
+        }
+      }
+      
+      // Start processing when page loads
+      window.addEventListener('load', handleOAuthCallback);
+    </script>
+  </body>
+</html> 

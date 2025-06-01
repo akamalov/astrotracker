@@ -6,6 +6,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from contextlib import asynccontextmanager
 import sentry_sdk
 from starlette.datastructures import URL
+from starlette.responses import HTMLResponse
 # Removed unused imports
 
 from app.core.config import settings
@@ -14,7 +15,7 @@ from app.db.session import async_engine
 # Import the fastapi_users instance from its new location
 from app.db.user_manager import fastapi_users
 # Import the auth_backend and google_oauth_client here
-from app.core.security import auth_backend, jwt_auth_backend # Import both auth backends
+from app.core.security import auth_backend, jwt_auth_backend, google_oauth_client # Import google_oauth_client
 # Import User schemas here, before they are used
 from app.models.user import UserRead, UserCreate, UserUpdate
 
@@ -85,6 +86,7 @@ app.include_router(
     prefix="/api/v1/auth/cookie",
     tags=["Authentication"],
 )
+# Remove the separate logout router code - logout is included in the auth router above
 app.include_router(
     fastapi_users.get_auth_router(jwt_auth_backend),
     prefix="/api/v1/auth/jwt",
@@ -97,6 +99,60 @@ app.include_router(
     prefix="/api/v1/auth",
     tags=["Authentication"],
 )
+
+# Include FastAPI Users OAuth routes if Google OAuth is configured
+if google_oauth_client: # Only include router if client is configured
+    
+    @app.get("/api/v1/auth/google/authorize")
+    async def google_authorize():
+        """Generate Google OAuth authorization URL that redirects to frontend."""
+        # Generate the authorization URL pointing to frontend callback
+        authorization_url = await google_oauth_client.get_authorization_url(
+            redirect_uri=f"{settings.FRONTEND_URL}/auth/callback",
+        )
+        
+        return {"authorization_url": authorization_url}
+    
+    @app.post("/api/v1/auth/google/callback")
+    async def google_callback(request: Request, user_manager = Depends(get_user_manager)):
+        """Handle OAuth code from frontend and authenticate user."""
+        try:
+            # Get the JSON body with the authorization code
+            body = await request.json()
+            code = body.get("code")
+            redirect_uri = body.get("redirect_uri")
+            
+            if not code:
+                raise HTTPException(status_code=400, detail="Authorization code missing")
+            
+            # Exchange the code for an access token using Google OAuth client
+            access_token = await google_oauth_client.get_access_token(code, redirect_uri)
+            
+            # Get user info from Google using the access token
+            user_info = await google_oauth_client.get_id_email(access_token["access_token"])
+            user_email = user_info[1]  # email is the second element
+            
+            # Get or create user via FastAPI Users user manager
+            try:
+                # Try to get existing user
+                user = await user_manager.get_by_email(user_email)
+            except Exception:
+                # User doesn't exist, create new user
+                user_create = UserCreate(
+                    email=user_email,
+                    password="",  # OAuth users don't need password
+                    is_verified=True  # Google OAuth users are pre-verified
+                )
+                user = await user_manager.create(user_create, safe=False)
+            
+            # Login the user (set cookie)
+            response = await auth_backend.login(auth_backend.get_strategy(), user)
+            
+            return response
+            
+        except Exception as e:
+            print(f"OAuth callback error: {e}")
+            raise HTTPException(status_code=400, detail=f"OAuth authentication failed: {str(e)}")
 
 # Include chart endpoints using the imported module
 app.include_router(
