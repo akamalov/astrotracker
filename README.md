@@ -2,7 +2,9 @@
 
 A modern, full-stack astrology application that provides comprehensive astrological chart generation, analysis, and insights. Built with FastAPI, Astro, and React.
 
-![AstroTracker Dashboard](https://via.placeholder.com/800x400/6366f1/ffffff?text=AstroTracker+Dashboard)
+<div align="center">
+  <img src="./astrotracker.jpg" alt="AstroTracker Application Interface" width="800" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+</div>
 
 ## ✨ Features
 
